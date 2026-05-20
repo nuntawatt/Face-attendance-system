@@ -1,19 +1,58 @@
+"""
+FastAPI application factory.
+
+Thin as possible — just wires up middleware, routers, exception handlers,
+and the lifespan context. No business logic here.
+"""
+from __future__ import annotations
+
+import aioredis
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.health import router as health_router
+from app.api.v1 import employees, attendance, face
 from app.core.config import settings
+from app.core.exception_handlers import app_error_handler, unhandled_exception_handler
+from app.core.exceptions import AppError
+from app.core.lifespan import lifespan
+from app.core.logging import configure_logging
+from app.core.middleware import RequestTracingMiddleware
 
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-)
+configure_logging(log_level=settings.log_level, json_logs=settings.is_production)
 
-app.include_router(health_router)
 
-@app.get("/")
-async def root():
-    return {
-        "status": "ok",
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-    }
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title=settings.app_name,
+        version="1.0.0",
+        lifespan=lifespan,
+        docs_url="/docs" if not settings.is_production else None,
+        redoc_url=None,
+    )
+
+    # Middleware (order matters outermost registered last)
+    app.add_middleware(RequestTracingMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Exception handlers
+    app.add_exception_handler(AppError, app_error_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
+
+    # Routers
+    app.include_router(employees.router, prefix="/api/v1")
+    app.include_router(face.router, prefix="/api/v1")
+    app.include_router(attendance.router, prefix="/api/v1")
+
+    @app.on_event("startup")
+    async def _init_redis() -> None:
+        app.state.redis = aioredis.from_url(str(settings.redis_url))
+
+    return app
+
+
+app = create_app()
