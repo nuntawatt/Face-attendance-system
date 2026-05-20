@@ -10,8 +10,6 @@ A highly performant, AI-powered Face Recognition and Attendance tracking system 
 - **In-Memory Embedding Cache**: Automatically rebuilds face embedding indexes in memory on startup for real-time comparison.
 - **Clean Architecture**: Domain-driven directory structure with clear separation of routers, services, repositories, and models.
 
----
-
 ## 🛠️ Tech Stack
 
 - **Framework**: [FastAPI](https://fastapi.tiangolo.com/)
@@ -20,8 +18,6 @@ A highly performant, AI-powered Face Recognition and Attendance tracking system 
 - **AI/CV Models**: [InsightFace](https://github.com/deepinsight/insightface), ONNXRuntime, OpenCV
 - **Validation**: Pydantic v2
 - **Testing**: Pytest with `pytest-asyncio`
-
----
 
 ## ✨ Getting Started
 
@@ -74,8 +70,6 @@ If you prefer to run the FastAPI server directly on your machine:
    uvicorn app.main:app --reload
    ```
 
----
-
 ## Testing
 
 The project uses `pytest` for unit and integration testing. 
@@ -86,8 +80,6 @@ To run the test suite:
 # Ensure you are in the virtual environment
 pytest tests/ -v
 ```
-
----
 
 ## Project Structure
 
@@ -108,3 +100,5 @@ pytest tests/ -v
 ├── docker-compose.yml # Container orchestration
 └── requirements.txt   # Python dependencies
 ```
+
+---
