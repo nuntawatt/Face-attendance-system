@@ -1,9 +1,9 @@
 """
-สร้างฐานข้อมูลและ mixin สำหรับโมเดลต่างๆ ในระบบ
-- Base: คลาสฐานสำหรับโมเดลทั้งหมดที่ใช้ SQLAlchemy ORM
-- TimestampMixin: ให้โมเดลมี created_at และ updated_at โดยใช้ server-side defaults
-- UUIDMixin: ให้โมเดลมี id เป็น UUID ที่ถูกสร้างโดยแอปพลิเคชัน
-- โมเดลต่างๆ เช่น Employee, FaceEmbedding, AttendanceRecord ที่จะสืบทอด
+Declarative base และ mixin ร่วมสำหรับ ORM model ทั้งหมด
+
+การใช้ mixin สำหรับ field ร่วม (id, timestamps) ทำให้ทุก model มีความสอดคล้องกัน
+และลดการ copy-paste ระหว่าง model UUID primary key ถูกสร้างฝั่ง application
+เพื่อความคาดเดาได้และหลีกเลี่ยง round-trip ไป database
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
-    """Provides created_at and updated_at with server-side defaults."""
+    """เพิ่ม created_at และ updated_at โดยใช้ server-side default อัตโนมัติ"""
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -36,7 +36,7 @@ class TimestampMixin:
 
 
 class UUIDMixin:
-    """UUID primary key generated application-side."""
+    """UUID primary key ที่สร้างฝั่ง application ไม่รอ database generate"""
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

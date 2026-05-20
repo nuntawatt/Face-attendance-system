@@ -1,12 +1,12 @@
 """
-Structured JSON logging for production.
+Structured JSON logging สำหรับ production
 
-Why structlog? Python's stdlib logging outputs unstructured text strings.
-In production, logs go to aggregators (Datadog, Loki, ELK). JSON logs
-mean zero parsing overhead and instant field-level querying.
+ทำไมต้องใช้ structlog? stdlib logging ของ Python ส่งออก unstructured text
+ใน production, log ไปที่ aggregator (Datadog, Loki, ELK) Log แบบ JSON
+หมายความว่า parser overhead เป็นศูนย์ และค้นหาตาม field ได้ทันที
 
-Performance note: Processors are chained; keep the chain lean.
-Never add a processor that does I/O (e.g., DB calls in a log processor).
+หมายเหตุ performance: Processor ถูก chain กัน ทำให้ chain เบาที่สุด
+ห้ามเพิ่ม processor ที่ทำ I/O เด็ดขาด (เช่น DB call ใน log processor)
 """
 from __future__ import annotations
 
@@ -19,11 +19,12 @@ import structlog
 
 def configure_logging(log_level: str = "INFO", json_logs: bool = True) -> None:
     """
-    Call once at application startup.
-    json_logs=False gives human-readable output for local development.
+    เรียกครั้งเดียวตอน application startup
+    json_logs=False ให้ output ที่อ่านง่ายสำหรับ local development
+    json_logs=True สำหรับ production (ส่งไป log aggregator)
     """
     shared_processors: list[Any] = [
-        structlog.contextvars.merge_contextvars,
+        structlog.contextvars.merge_contextvars, # รวม context vars เข้า log
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
@@ -41,7 +42,7 @@ def configure_logging(log_level: str = "INFO", json_logs: bool = True) -> None:
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
-        cache_logger_on_first_use=True,
+        cache_logger_on_first_use=True, # cache เพื่อ performance
     )
 
     formatter = structlog.stdlib.ProcessorFormatter(
@@ -59,7 +60,7 @@ def configure_logging(log_level: str = "INFO", json_logs: bool = True) -> None:
     root_logger.handlers = [handler]
     root_logger.setLevel(log_level.upper())
 
-    # Silence noisy third-party loggers
+    # ปิดเสียง logger ของ third-party ที่ verbose เกินไป
     for name in ("uvicorn.access", "sqlalchemy.engine", "httpx"):
         logging.getLogger(name).setLevel(logging.WARNING)
 

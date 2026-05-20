@@ -1,16 +1,16 @@
 """
-Face registration service.
+Face registration service
 
-This service owns the full registration workflow:
-  1. Decode image bytes
-  2. Detect exactly one face
-  3. Check quality threshold
-  4. Extract and store embedding
-  5. Invalidate the recognition cache
+Service นี้เป็นเจ้าของ workflow การลงทะเบียนทั้งหมด:
+1. Decode image bytes
+2. ตรวจพบใบหน้าพอดีหนึ่งใบหน้า
+3. ตรวจสอบ quality threshold
+4. Extract และเก็บ embedding
+5. Invalidate recognition cache
 
-The embedding cache invalidation via Redis pub/sub ensures that the
-RTSP processing workers (potentially on different nodes) reload their
-in-memory index after registration.
+การ invalidate embedding cache ผ่าน Redis pub/sub ทำให้
+RTSP processing worker (อาจอยู่ node อื่น) reload index ใน memory
+หลังลงทะเบียนใหม่ได้ทันที
 """
 from __future__ import annotations
 
@@ -37,8 +37,8 @@ from app.schemas.face import FaceRegistrationResponse
 
 logger = structlog.get_logger(__name__)
 
-MIN_QUALITY_THRESHOLD = 0.4
-MODEL_VERSION = "buffalo_s_v1"
+MIN_QUALITY_THRESHOLD = 0.4  # คะแนนคุณภาพขั้นต่ำสำหรับลงทะเบียน
+MODEL_VERSION = "buffalo_s_v1" # เวอร์ชันโมเดลที่ใช้สำหรับ embedding นี้ เก็บไว้เพื่อ compatibility ในอนาคต
 
 
 class FaceRegistrationService:
@@ -56,15 +56,15 @@ class FaceRegistrationService:
 
         logger.info("face_registration_start", employee_id=str(employee_id))
 
-        # Verify employee exists
+        # ตรวจสอบว่าพนักงานมีอยู่จริง
         employee = await self._employee_repo.get_by_id(employee_id)
         if not employee:
             raise EmployeeNotFoundError(employee_id)
 
-        # Decode image
+        # Decode ภาพ
         frame = self._decode_image(image_bytes)
 
-        # Run face detection
+        # รัน face detection
         faces = await face_engine.analyze_frame(frame)
 
         if len(faces) == 0:
@@ -77,10 +77,10 @@ class FaceRegistrationService:
         if face.quality_score < MIN_QUALITY_THRESHOLD:
             raise ImageQualityError(face.quality_score, MIN_QUALITY_THRESHOLD)
 
-        # Serialize embedding
+        # Serialize embedding เป็น bytes สำหรับเก็บใน DB
         embedding_bytes = face.embedding.tobytes()
 
-        # Upsert into DB
+        # Upsert ลง database
         embedding_record = FaceEmbedding(
             employee_id=employee_id,
             embedding_vector=embedding_bytes,

@@ -1,9 +1,8 @@
 """
-Employee model สำหรับเก็บข้อมูลพนักงานในระบบ
-- ใช้ SQLAlchemy ORM ในการกำหนดโมเดลและความสัมพันธ์กับตารางอื่นๆ
-- มีฟิลด์ต่างๆ เช่น employee_code, full_name, department
-- มีความสัมพันธ์กับ FaceEmbedding และ AttendanceRecord เพื่อเชื่อมโยงข้อมูลใบหน้าและการลงเวลาของพนักงาน
-- มี field face_registered เพื่อบ่งบอกว่าพนักงานนี้ได้ลงทะเบียนใบหน้าแล้วหรือยัง ซึ่งจะช่วยในการจัดการ flow การลงทะเบียนใบหน้าและการตรวจสอบ
+ORM model สำหรับพนักงาน
+
+หมายเหตุการแยกส่วน: ORM model ตั้งใจให้เบาที่สุด ไม่มี business logic ที่นี่
+มันเป็นแค่ data contract กับ database เท่านั้น
 """
 from __future__ import annotations
 
@@ -14,11 +13,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, TimestampMixin, UUIDMixin
 
-
-# Employee model จะสืบทอดจาก UUIDMixin, TimestampMixin และ Base เพื่อให้มี id เป็น UUID และมี created_at, updated_at โดยอัตโนมัติ
+# Employee model สำหรับเก็บข้อมูลพนักงานในระบบ
 class Employee(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "employees"
 
+    # รหัสพนักงาน -> unique, index เพื่อค้นหาเร็ว
     employee_code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     department: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
@@ -27,6 +26,8 @@ class Employee(UUIDMixin, TimestampMixin, Base):
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # flag บอกว่าลงทะเบียนใบหน้าแล้วรึยัง
     face_registered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Relationships

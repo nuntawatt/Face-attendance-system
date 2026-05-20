@@ -1,10 +1,13 @@
 """
-FaceEmbeddingRepository: Repository สำหรับจัดการ FaceEmbedding model
-- สืบทอดจาก BaseRepository เพื่อใช้ CRUD operations ทั่วไป
-- เพิ่ม method เฉพาะสำหรับ FaceEmbedding เช่น get_by_employee_id, get_all_active
-- ใช้ SQLAlchemy Core ในการ query database แบบ async
-- รองรับการ upsert (update หรือ insert) ของ embedding เพื่อให้การลงทะเบียนใบหน้าใหม่หรือการอัพเดต embedding เดิมทำได้ง่ายขึ้น
-- รองรับการลบ embedding เมื่อพนักงานถูกลบหรือไม่ active แล้ว
+Repository สำหรับจัดเก็บ face embedding
+
+Embedding ถูกเก็บเป็น float array ดิบใน PostgreSQL โดยใช้ extension pgvector
+(หรือ BYTEA ถ้าไม่มี pgvector) Repository นี้ซ่อน detail การเก็บข้อมูลนั้น
+ไม่ให้ service layer เห็นโดยสิ้นเชิง
+
+หมายเหตุ performance: เราไม่โหลด embedding ทั้งหมดใน hot loop
+Recognition engine ดึง embedding แบบ bulk ตอน startup แล้ว cache ใน Redis/memory
+Repository นี้ถูกเรียกแค่ตอน registration และ cache invalidation เท่านั้น
 """
 from __future__ import annotations
 
@@ -19,22 +22,20 @@ from app.repositories.base import BaseRepository
 
 class FaceEmbeddingRepository(BaseRepository[FaceEmbedding]):
 
-    # FaceEmbeddingRepository จะสืบทอดจาก BaseRepository โดยระบุ ModelT เป็น FaceEmbedding
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(FaceEmbedding, session)
 
-    # เพิ่ม method เฉพาะสำหรับ FaceEmbedding เช่น get_by_employee_id, get_all_active
     async def get_by_employee_id(self, employee_id: UUID) -> FaceEmbedding | None:
+        """ดึง embedding ของพนักงานคนนั้น (1 คน = 1 embedding)"""
         result = await self._session.execute(
             select(FaceEmbedding).where(FaceEmbedding.employee_id == employee_id)
         )
         return result.scalar_one_or_none()
 
-    # get_all_active_embeddings จะ return list ของ FaceEmbedding ที่เชื่อมโยงกับ Employee ที่มี is_active = True
     async def get_all_active_embeddings(self) -> list[FaceEmbedding]:
         """
-        Bulk load for in-memory recognition index.
-        Called only at startup and after new registrations.
+        โหลด embedding ทั้งหมดแบบ bulk สำหรับสร้าง in-memory recognition index
+        เรียกแค่ตอน startup และหลังมีการลงทะเบียนใบหน้าใหม่เท่านั้น
         """
         result = await self._session.execute(
             select(FaceEmbedding)
@@ -43,9 +44,8 @@ class FaceEmbeddingRepository(BaseRepository[FaceEmbedding]):
         )
         return list(result.scalars().all())
 
-    # upsert จะรับ FaceEmbedding instance และจะ update ถ้ามีอยู่แล้ว หรือสร้างใหม่ถ้าไม่มี
     async def upsert(self, embedding: FaceEmbedding) -> FaceEmbedding:
-        """Replace existing embedding or create new one."""
+        """แทนที่ embedding เดิมหรือสร้างใหม่ถ้ายังไม่มี"""
         existing = await self.get_by_employee_id(embedding.employee_id)
         if existing:
             existing.embedding_vector = embedding.embedding_vector
@@ -55,8 +55,8 @@ class FaceEmbeddingRepository(BaseRepository[FaceEmbedding]):
             return existing
         return await self.create(embedding)
 
-    # delete_by_employee_id จะลบ FaceEmbedding ที่เชื่อมโยงกับ employee_id นี้
     async def delete_by_employee_id(self, employee_id: UUID) -> None:
+        """ลบ embedding เมื่อพนักงานออกจากระบบ"""
         await self._session.execute(
             delete(FaceEmbedding).where(FaceEmbedding.employee_id == employee_id)
         )

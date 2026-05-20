@@ -1,9 +1,9 @@
 """
-AttendanceRepository: Repository สำหรับจัดการ AttendanceRecord model
-- สืบทอดจาก BaseRepository เพื่อใช้ CRUD operations ทั่วไป
-- เพิ่ม method เฉพาะสำหรับ AttendanceRecord เช่น get_today_record, get_by_date_range
-- ใช้ SQLAlchemy Core ในการ query database แบบ async
-- รองรับการ mark checkout โดยการอัพเดต check_out_time ใน record ที่มีอยู่แล้ว
+Repository สำหรับบันทึกการเข้างาน
+
+การออกแบบที่สำคัญ: attendance record เป็นแบบ append-only จาก AI engine
+ไม่มีการลบ record ใดๆ มีแค่ soft-invalidate เท่านั้น
+เพื่อรักษา audit trail ไว้ตลอดเวลา
 """
 from __future__ import annotations
 
@@ -23,41 +23,39 @@ class AttendanceRepository(BaseRepository[AttendanceRecord]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(AttendanceRecord, session)
 
-    # เพิ่ม method เฉพาะสำหรับ AttendanceRecord เช่น get_today_record, get_by_date_range
     async def get_today_record(self, employee_id: UUID) -> AttendanceRecord | None:
+        """ดึง record การเข้างานของวันนี้ สำหรับตรวจสอบก่อนบันทึกซ้ำ"""
         today = date.today()
         result = await self._session.execute(
             select(AttendanceRecord).where(
                 and_(
                     AttendanceRecord.employee_id == employee_id,
-                    func.date(AttendanceRecord.check_in_time) == today,
+                    AttendanceRecord.work_date == today,
                 )
             )
         )
         return result.scalar_one_or_none()
 
-    # get_by_date_range จะ return list ของ AttendanceRecord ที่อยู่ในช่วงวันที่นี้ โดยรองรับ pagination ด้วย limit และ offset
     async def get_by_date_range(
         self,
         employee_id: UUID,
         start_date: date,
         end_date: date,
     ) -> list[AttendanceRecord]:
+        """ดึงประวัติการเข้างานตามช่วงวันที่ ระบุ เรียงจากล่าสุด"""
         result = await self._session.execute(
             select(AttendanceRecord).where(
                 and_(
                     AttendanceRecord.employee_id == employee_id,
-                    func.date(AttendanceRecord.check_in_time) >= start_date,
-                    func.date(AttendanceRecord.check_in_time) <= end_date,
+                    AttendanceRecord.work_date >= start_date,
+                    AttendanceRecord.work_date <= end_date,
                 )
-            ).order_by(AttendanceRecord.check_in_time.desc())
+            ).order_by(AttendanceRecord.work_date.desc(), AttendanceRecord.check_in_time.desc())
         )
         return list(result.scalars().all())
 
-    # mark_checkout จะอัพเดต check_out_time ใน record ที่มีอยู่แล้ว โดยรับ record_id และ checkout_time มาเป็น parameter
-    async def mark_checkout(
-        self, record_id: UUID, checkout_time: datetime
-    ) -> AttendanceRecord | None:
+    async def mark_checkout(self, record_id: UUID, checkout_time: datetime) -> AttendanceRecord | None:
+        """บันทึกเวลาออกงานจะเรียกจาก exit camera หรือ end-of-shift cron"""
         record = await self.get_by_id(record_id)
         if record:
             record.check_out_time = checkout_time

@@ -1,9 +1,12 @@
 """
-Request tracing middleware.
+Request tracing middleware
 
-Every incoming request gets a trace_id injected into structlog contextvars.
-This means every log line emitted during that request — across all layers —
-automatically carries the trace_id without explicit passing.
+Request ทุกรายการที่เข้ามาจะได้รับ trace_id ที่ inject เข้าไปใน structlog contextvars
+หมายความว่า log ทุกบรรทัดที่ emit ระหว่าง request นั้น — ในทุก layer —
+จะมี trace_id โดยอัตโนมัติโดยไม่ต้องส่งต่อ parameter
+
+ใน Kibana หรือ Datadog: filter ด้วย trace_id เดียว เห็นทุก log ตั้งแต่
+router -> service -> repository -> AI engine ทั้งหมดในหนึ่ง request
 """
 from __future__ import annotations
 
@@ -21,6 +24,7 @@ logger = structlog.get_logger(__name__)
 class RequestTracingMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
+        # สร้าง trace_id ใหม่สำหรับแต่ละ request
         trace_id = str(uuid.uuid4())
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(
@@ -39,5 +43,6 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
             duration_ms=duration_ms,
         )
 
+        # ส่ง trace_id กลับใน response header เพื่อ debug ฝั่ง client
         response.headers["X-Trace-ID"] = trace_id
         return response

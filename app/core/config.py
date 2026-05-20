@@ -1,11 +1,11 @@
 """
-Environment-based configuration using Pydantic Settings.
+Environment-based configuration ด้วย Pydantic Settings
 
-All values come from environment variables (or .env file via python-dotenv).
-Never hardcode URLs, credentials, or thresholds in application code.
+ทุกค่ามาจาก environment variable (หรือ .env file)
+ห้าม hardcode URL, credentials, หรือ threshold ในโค้ดเด็ดขาด
 
-The @cached_property on camera_configs means the parsing happens
-once, not on every access.
+@cached_property บน camera_configs หมายความว่า parsing เกิดขึ้นครั้งเดียว
+ไม่ใช่ทุกครั้งที่เข้าถึง
 """
 from __future__ import annotations
 
@@ -20,20 +20,36 @@ from app.camera.stream_reader import CameraConfig
 
 
 class Settings(BaseSettings):
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
     # App
     app_name: str = "Face Attendance System"
     environment: Literal["development", "staging", "production"] = "production"
     log_level: str = "INFO"
 
-    # Database
-    database_url: PostgresDsn = Field(..., alias="DATABASE_URL")
+    # Database Components
+    postgres_host: str = Field(..., alias="POSTGRES_HOST")
+    postgres_port: int = Field(5432, alias="POSTGRES_PORT")
+    postgres_user: str = Field(..., alias="POSTGRES_USER")
+    postgres_password: str = Field(..., alias="POSTGRES_PASSWORD")
+    postgres_db: str = Field(..., alias="POSTGRES_DB")
+
     db_pool_size: int = 10
     db_max_overflow: int = 20
 
-    # Redis
-    redis_url: RedisDsn = Field(..., alias="REDIS_URL")
+    @property
+    def database_url(self) -> str:
+        """Construct the SQLAlchemy AsyncPG connection string."""
+        return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+
+    # Redis Components
+    redis_host: str = Field(..., alias="REDIS_HOST")
+    redis_port: int = Field(6379, alias="REDIS_PORT")
+
+    @property
+    def redis_url(self) -> str:
+        """Construct the Redis connection string."""
+        return f"redis://{self.redis_host}:{self.redis_port}/0"
 
     # AI
     face_model_pack: str = "buffalo_s"

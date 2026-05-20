@@ -1,11 +1,11 @@
 """
-Employee API router.
+Employee API router
 
-Routers are dumb dispatchers. No business logic, no SQL, no AI calls.
-They validate input (via Pydantic), call the service, return the result.
+Router เป็นแค่ dispatcher ที่บาง ไม่มี business logic, ไม่มี SQL, ไม่มี AI call
+รับ input (ผ่าน Pydantic validate แล้ว), เรียก service, return ผลลัพธ์
 
-Pattern: all endpoints use explicit response_model for documentation
-and automatic response filtering (never accidentally leak fields).
+Pattern: ทุก endpoint ใช้ response_model ชัดเจน
+เพื่อ documentation และ filter response อัตโนมัติ (ไม่เคย leak field โดยบังเอิญ)
 """
 from __future__ import annotations
 
@@ -22,14 +22,14 @@ from app.schemas.employee import (
 )
 from app.services.employee_service import EmployeeService
 
-router = APIRouter(prefix="/employees", tags=["Employees"])
+router = APIRouter(prefix="/employees", tags=["พนักงาน"])
 
 
 @router.post(
     "/",
     response_model=EmployeeResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Register a new employee",
+    summary="ลงทะเบียนพนักงานใหม่",
 )
 async def create_employee(
     payload: EmployeeCreate,
@@ -41,7 +41,7 @@ async def create_employee(
 @router.get(
     "/",
     response_model=EmployeeListResponse,
-    summary="List all employees",
+    summary="ดูรายชื่อพนักงานทั้งหมด",
 )
 async def list_employees(
     limit: int = Query(50, ge=1, le=200),
@@ -54,7 +54,7 @@ async def list_employees(
 @router.get(
     "/{employee_id}",
     response_model=EmployeeResponse,
-    summary="Get employee by ID",
+    summary="ดูข้อมูลพนักงานตาม ID",
 )
 async def get_employee(
     employee_id: UUID,
@@ -66,7 +66,7 @@ async def get_employee(
 @router.patch(
     "/{employee_id}",
     response_model=EmployeeResponse,
-    summary="Partially update an employee",
+    summary="แก้ไขข้อมูลพนักงานบางส่วน",
 )
 async def update_employee(
     employee_id: UUID,
@@ -79,7 +79,7 @@ async def update_employee(
 @router.delete(
     "/{employee_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Deactivate an employee (soft delete)",
+    summary="ปิดการใช้งานพนักงาน (soft delete)",
 )
 async def deactivate_employee(
     employee_id: UUID,

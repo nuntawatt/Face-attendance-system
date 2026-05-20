@@ -1,18 +1,18 @@
 """
-InsightFace ONNX engine wrapper.
+InsightFace ONNX engine wrapper
 
-Singleton pattern: the model is loaded ONCE at startup and reused.
-Loading a 300MB ONNX model per-request would be catastrophic.
+รูปแบบ Singleton: โมเดลถูกโหลดครั้งเดียวตอน startup และใช้ซ้ำตลอด
+การโหลดโมเดล ONNX ขนาด 300MB ต่อ request จะทำให้ระบบล่มแน่นอน
 
-Thread-safety: ONNX Runtime sessions are thread-safe for inference.
-We use asyncio.to_thread() to run CPU-bound inference without blocking
-the event loop.
+Thread-safety: ONNX Runtime session ปลอดภัยสำหรับ inference พร้อมกันหลาย thread
+เราใช้ asyncio.to_thread() รัน CPU-bound inference โดยไม่ block event loop
 
-Performance levers:
-  - inter_op_num_threads / intra_op_num_threads: tune per deployment
-  - Use CUDAExecutionProvider if GPU available, fall back to CPU
-  - face_det_size: lower = faster detection, less accurate on small faces
+ปุ่มปรับ performance:
+- inter_op_num_threads / intra_op_num_threads: ปรับตาม hardware จริง
+- ใช้ CUDAExecutionProvider ถ้ามี GPU, fallback เป็น CPU
+- face_det_size: ยิ่งเล็กยิ่งเร็ว แต่แม่นยำน้อยลงกับใบหน้าเล็ก
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,17 +30,17 @@ logger = structlog.get_logger(__name__)
 class DetectedFace(NamedTuple):
     embedding: np.ndarray  # shape: (512,) normalized float32
     bbox: tuple[int, int, int, int]  # x1, y1, x2, y2
-    det_score: float
-    quality_score: float
+    det_score: float  # คะแนน detection ความแน่ใจของการตรวจพบ
+    quality_score: float  # คะแนนคุณภาพภาพ (0.0 - 1.0)
 
 
 class FaceEngine:
     """
-    Wraps InsightFace for detection + embedding extraction.
+    Wraps InsightFace สำหรับ detection + embedding extraction
 
-    model_pack: 'buffalo_l' (accuracy) or 'buffalo_s' (speed).
-    For factory deployment, buffalo_s is usually sufficient and
-    saves ~40% CPU vs buffalo_l.
+    model_pack: 'buffalo_l' (แม่นยำ) หรือ 'buffalo_s' (เร็ว)
+    สำหรับโรงงาน buffalo_s มักเพียงพอและประหยัด CPU ~40%
+    เมื่อเทียบกับ buffalo_l
     """
 
     def __init__(
@@ -57,14 +57,14 @@ class FaceEngine:
         self._app: FaceAnalysis | None = None
 
     def load(self) -> None:
-        """Blocking load call from startup event, not from a coroutine."""
-        logger.info("loading_face_engine", model=self._model_pack)
+        """Blocking load เรียกจาก startup event ไม่ใช่จาก coroutine"""
+        logger.info("กำลังโหลด face engine", model=self._model_pack)
         self._app = FaceAnalysis(
             name=self._model_pack,
             providers=self._providers,
         )
         self._app.prepare(ctx_id=0, det_size=self._det_size, det_thresh=self._det_thresh)
-        logger.info("face_engine_ready", model=self._model_pack)
+        logger.info("face engine พร้อมใช้งาน", model=self._model_pack)
 
     @property
     def is_ready(self) -> bool:
@@ -72,15 +72,16 @@ class FaceEngine:
 
     async def analyze_frame(self, frame: np.ndarray) -> list[DetectedFace]:
         """
-        Run detection + embedding on a frame asynchronously.
-        asyncio.to_thread ensures the CPU-bound ONNX inference does not
-        block the event loop, preserving API responsiveness.
+        รัน detection + embedding บน frame แบบ async
+        asyncio.to_thread ทำให้ CPU-bound ONNX inference ไม่ block event loop
+        รักษา API responsiveness ไว้ได้แม้ขณะประมวลผลภาพ
         """
         if not self.is_ready:
-            raise RuntimeError("FaceEngine not loaded")
+            raise RuntimeError("FaceEngine ยังไม่ได้โหลด")
         return await asyncio.to_thread(self._analyze_sync, frame)
 
     def _analyze_sync(self, frame: np.ndarray) -> list[DetectedFace]:
+        """ฟังก์ชัน blocking รันใน thread pool เสมอ ห้ามเรียกตรงจาก async code"""
         faces = self._app.get(frame)
         results: list[DetectedFace] = []
         for face in faces:
@@ -98,9 +99,9 @@ class FaceEngine:
     @staticmethod
     def _estimate_quality(frame: np.ndarray, bbox: tuple) -> float:
         """
-        Lightweight quality heuristic: Laplacian variance (sharpness).
-        Score > 100 = usable, > 200 = good quality for registration.
-        This is intentionally cheap no ML model, pure CV math.
+        Heuristic วัดคุณภาพภาพแบบเบา: Laplacian variance (ความคมชัด)
+        คะแนน > 100 = ใช้ได้, > 200 = คุณภาพดีสำหรับลงทะเบียน
+        ตั้งใจให้ถูก ไม่ใช้ ML model, ใช้แค่ CV math เพื่อประหยัด CPU
         """
         x1, y1, x2, y2 = bbox
         face_crop = frame[y1:y2, x1:x2]
@@ -108,8 +109,8 @@ class FaceEngine:
             return 0.0
         gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
         variance = cv2.Laplacian(gray, cv2.CV_64F).var()
-        return min(float(variance) / 200.0, 1.0)  # normalize to [0, 1]
+        return min(float(variance) / 200.0, 1.0)  # normalize เป็น [0, 1]
 
 
-# Application-level singleton initialized in lifespan
+# Singleton ระดับ application initialize ใน lifespan
 face_engine = FaceEngine()

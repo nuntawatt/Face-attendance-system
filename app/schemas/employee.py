@@ -1,11 +1,15 @@
 """
-Employee schemas สำหรับการรับส่งข้อมูลเกี่ยวกับพนักงานใน API
-- EmployeeBase: schema พื้นฐานสำหรับข้อมูลพนักงานที่ใช้ในการสร้างและอัพเดต
-- EmployeeCreate: schema สำหรับการสร้างพนักงานใหม่ โดยสืบทอดจาก EmployeeBase และเพิ่ม field is_active
-- EmployeeUpdate: schema สำหรับการอัพเดตพนักงาน โดยมี field ทั้งหมดเป็น optional เพื่อรองรับการอัพเดตแบบ partial (PATCH semantics)
-- EmployeeResponse: schema สำหรับการตอบกลับข้อมูลพนักงานใน API
-- EmployeeListResponse: schema สำหรับการตอบกลับรายการพนักงานพร้อม pagination metadata
-- มีการใช้ Pydantic validators เพื่อทำความสะอาดและตรวจสอบข้อมูล
+Pydantic v2 schemas สำหรับ Employee domain
+
+รูปแบบการแบ่งชั้น schema:
+    EmployeeBase -> field ร่วม (ไม่มี ID, ไม่มี timestamp)
+    EmployeeCreate -> สิ่งที่ API รับตอน POST
+    EmployeeUpdate -> body ของ PATCH (ทุก field เป็น optional)
+    EmployeeResponse -> สิ่งที่ API ส่งกลับ (รวม computed fields)
+    EmployeeListResponse -> wrapper สำหรับรายการแบบ paginated
+
+ป้องกัน over-posting (client ไม่สามารถตั้ง face_registered โดยตรงได้)
+และ under-exposure (ไม่เคย leak internal DB fields)
 """
 from __future__ import annotations
 
@@ -28,6 +32,7 @@ class EmployeeBase(BaseModel):
     @field_validator("employee_code")
     @classmethod
     def validate_employee_code(cls, v: str) -> str:
+        """รหัสพนักงานต้องเป็นตัวอักษร ตัวเลข หรือขีดกลางเท่านั้น"""
         v = v.strip().upper()
         if not re.match(r"^[A-Z0-9\-]+$", v):
             raise ValueError("Employee code must contain only alphanumeric characters and hyphens")
@@ -36,7 +41,8 @@ class EmployeeBase(BaseModel):
     @field_validator("full_name")
     @classmethod
     def validate_full_name(cls, v: str) -> str:
-        return " ".join(v.split())  # normalize whitespace
+        """ทำความสะอาด whitespace ใน full name"""
+        return " ".join(v.split())
 
 
 class EmployeeCreate(EmployeeBase):
@@ -44,7 +50,7 @@ class EmployeeCreate(EmployeeBase):
 
 
 class EmployeeUpdate(BaseModel):
-    """All fields optional for PATCH semantics."""
+    """ทุก field เป็น optional สำหรับ PATCH semantics แก้ได้แค่ field ที่ส่งมา"""
     full_name: str | None = Field(None, min_length=2, max_length=200)
     department: str | None = Field(None, min_length=2, max_length=100)
     position: str | None = Field(None, min_length=2, max_length=100)
@@ -55,7 +61,7 @@ class EmployeeUpdate(BaseModel):
 
 
 class EmployeeResponse(EmployeeBase):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True) # อ่านค่าจาก ORM object ได้โดยตรง
 
     id: UUID
     is_active: bool

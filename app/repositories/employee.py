@@ -1,9 +1,9 @@
 """
-EmployeeRepository เป็น repository ที่จัดการกับ entity Employee โดยเฉพาะ
-- สืบทอดจาก BaseRepository เพื่อใช้ CRUD operations ทั่วไป
-- เพิ่ม method เฉพาะสำหรับ Employee เช่น get_by_employee_code, get_by_department
-- ใช้ SQLAlchemy Core ในการ query database แบบ async
-- รองรับการตรวจสอบ unique constraint ของ employee_code ผ่าน method employee_code_exists
+Repository เฉพาะสำหรับ Employee domain
+
+Query ที่เป็นของ domain นี้อยู่ที่นี่เท่านั้น ไม่ใช่ใน service
+Service layer เรียกใช้แบบระบุชื่อ method ชัดเจน
+ไม่ควรสร้าง SQL condition เองใน service layer เด็ดขาด
 """
 from __future__ import annotations
 
@@ -23,14 +23,14 @@ class EmployeeRepository(BaseRepository[Employee]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(Employee, session)
 
-    # เพิ่ม method เฉพาะสำหรับ Employee เช่น get_by_employee_code, get_by_department
     async def get_by_employee_code(self, code: str) -> Employee | None:
+        """ค้นหาพนักงานด้วยรหัสพนักงาน"""
         result = await self._session.execute(
             select(Employee).where(Employee.employee_code == code)
         )
         return result.scalar_one_or_none()
 
-    # get_by_department จะ return list ของ Employee ที่อยู่ใน department นั้น โดยรองรับ pagination ด้วย limit และ offset
+    # get_by_department จะ return list ของ Employee ที่อยู่ใน department นี้ โดยรองรับ pagination ด้วย limit และ offset
     async def get_by_department(
         self, department: str, *, limit: int = 100, offset: int = 0
     ) -> Sequence[Employee]:

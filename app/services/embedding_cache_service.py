@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-# pyrefly: ignore [missing-import]
 import structlog
-# pyrefly: ignore [missing-import]
 import numpy as np
-# pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.recognition import embedding_index

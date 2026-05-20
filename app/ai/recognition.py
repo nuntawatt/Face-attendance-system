@@ -1,17 +1,17 @@
 """
-Face recognition: embedding matching against the employee index.
+Face recognition: จับคู่ embedding กับ employee index ใน memory
 
-The employee index is an in-memory numpy matrix. For N employees,
-recognition is a single matrix multiplication: O(N * 512).
-For N=5000, this takes ~0.3ms on a modern CPU — no GPU needed.
+Employee index คือ numpy matrix ใน memory สำหรับ N พนักงาน
+การจำแนกคือ matrix multiplication ครั้งเดียว: O(N * 512)
+สำหรับ N=5,000 คน ใช้เวลา ~0.3ms บน CPU สมัยใหม่ — ไม่ต้องใช้ GPU เลย
 
-The index is loaded at startup from the database and refreshed via
-Redis pub/sub whenever a new face is registered.
+Index ถูกโหลดตอน startup จาก DB และ refresh ผ่าน Redis pub/sub
+เมื่อมีการลงทะเบียนใบหน้าใหม่
 
-Why not use FAISS here?
-For <10,000 employees, numpy matmul is faster than FAISS ANN because
-the FAISS overhead (quantization, index lookup) exceeds the brute-force
-cost at this scale. Switch to FAISS when N > 50,000.
+ทำไมไม่ใช้ FAISS?
+สำหรับพนักงานน้อยกว่า 10,000 คน numpy matmul เร็วกว่า FAISS ANN
+เพราะ FAISS overhead (quantization, index lookup) สูงกว่าต้นทุน brute-force
+ที่ scale นี้ เปลี่ยนเป็น FAISS เมื่อ N > 50,000 คน
 """
 from __future__ import annotations
 
@@ -25,25 +25,27 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-RECOGNITION_THRESHOLD = 0.45  # cosine similarity threshold for a confident match, tuned empirically
+# ค่า threshold cosine similarity — ปรับตาม environment จริง
+# ยิ่งสูงยิ่งเข้มงวด ลด false positive แต่อาจ miss พนักงานที่เหนื่อยหรือสวมแมสก์
+RECOGNITION_THRESHOLD = 0.45
 
 
 class RecognitionMatch(NamedTuple):
     employee_id: UUID
-    similarity: float
-    is_confident: bool
+    similarity: float  # ค่า cosine similarity (0.0 - 1.0)
+    is_confident: bool # True ถ้า similarity >= threshold
 
 
 @dataclass
 class EmployeeEmbeddingIndex:
     """
-    Thread-safe in-memory embedding index.
+    In-memory embedding index ที่ปลอดภัยสำหรับ thread
 
-    _matrix shape: (N, 512) stacked normalized embeddings.
-    _employee_ids: list of UUIDs in the same order as matrix rows.
+    _matrix shape: (N, 512) stacked normalized embeddings
+    _employee_ids: list UUID ในลำดับเดียวกับ row ของ matrix
 
-    Update is always a full reload (copy-on-write), never an in-place
-    mutation, to avoid race conditions during recognition.
+    การ update เป็นแบบ full reload (copy-on-write) ไม่ใช่ in-place mutation
+    เพื่อหลีกเลี่ยง race condition ระหว่างการจำแนกใบหน้า
     """
 
     _matrix: np.ndarray = field(default_factory=lambda: np.empty((0, 512), dtype=np.float32))
@@ -55,7 +57,7 @@ class EmployeeEmbeddingIndex:
         return len(self._employee_ids)
 
     async def rebuild(self, embeddings: dict[UUID, np.ndarray]) -> None:
-        """Replace the entire index atomically."""
+        """แทนที่ index ทั้งหมดแบบ atomic เรียกหลัง registration ใหม่"""
         if not embeddings:
             async with self._lock:
                 self._matrix = np.empty((0, 512), dtype=np.float32)
@@ -73,8 +75,8 @@ class EmployeeEmbeddingIndex:
 
     async def find_match(self, probe: np.ndarray) -> RecognitionMatch | None:
         """
-        Cosine similarity search. Returns the best match above threshold.
-        probe must be a normalized (L2) float32 vector of shape (512,).
+        ค้นหาด้วย cosine similarity คืน match ที่ดีที่สุดที่เหนือ threshold
+        probe ต้องเป็น normalized (L2) float32 vector shape (512,)
         """
         async with self._lock:
             if self._matrix.shape[0] == 0:
@@ -82,7 +84,7 @@ class EmployeeEmbeddingIndex:
             matrix = self._matrix
             ids = self._employee_ids
 
-        # Cosine similarity = dot product of normalized vectors
+        # Cosine similarity = dot product ของ normalized vector
         similarities = matrix @ probe  # shape: (N,)
         best_idx = int(np.argmax(similarities))
         best_sim = float(similarities[best_idx])
@@ -94,5 +96,5 @@ class EmployeeEmbeddingIndex:
         )
 
 
-# Application-level singleton
+# Singleton ระดับ application
 embedding_index = EmployeeEmbeddingIndex()

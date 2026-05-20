@@ -1,8 +1,8 @@
 """
-Global FastAPI exception handlers.
+Global FastAPI exception handlers
 
-This is the ONLY place that translates domain exceptions to HTTP responses.
-Routers never catch exceptions — they bubble up to here.
+นี่คือ **ที่เดียว** ที่แปลง domain exception เป็น HTTP response
+Router ไม่ catch exception เลย — ปล่อยให้ bubble ขึ้นมาถึงที่นี่
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ logger = structlog.get_logger(__name__)
 
 
 def _error_response(status: int, code: str, message: str) -> JSONResponse:
+    """สร้าง error response ในรูปแบบมาตรฐานของระบบ"""
     return JSONResponse(
         status_code=status,
         content={"error": {"code": code, "message": message}},
@@ -29,6 +30,7 @@ def _error_response(status: int, code: str, message: str) -> JSONResponse:
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    """จัดการ domain exception ทั้งหมด แปลงเป็น HTTP response ที่เหมาะสม"""
     error_class = type(exc).__name__
 
     if isinstance(exc, NotFoundError):
@@ -47,10 +49,12 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         logger.error("service_unavailable", error=error_class, message=exc.message)
         return _error_response(503, error_class, exc.message)
 
+    # Exception ที่ไม่คาดคิด log full stack trace
     logger.exception("unhandled_app_error", error=error_class)
-    return _error_response(500, "InternalError", "An unexpected error occurred")
+    return _error_response(500, "InternalError", "เกิดข้อผิดพลาดภายในระบบ")
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """จัดการ exception ที่ไม่ใช่ AppError สิ่งที่ไม่ควรเกิดขึ้นใน production"""
     logger.exception("unhandled_exception", exc_type=type(exc).__name__)
-    return _error_response(500, "InternalError", "An unexpected error occurred")
+    return _error_response(500, "InternalError", "เกิดข้อผิดพลาดภายในระบบ")

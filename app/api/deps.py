@@ -1,12 +1,12 @@
 """
-FastAPI dependency providers.
+FastAPI dependency providers
 
-All database sessions, service instances, and auth checks are provided
-as dependencies. This means every router stays thin — no setup code,
-no teardown code. The session lifecycle is managed here via async generators.
+Database session, service instance และ auth check ทั้งหมด
+ถูก provide เป็น dependency ทำให้ router บางมาก ไม่มี setup, ไม่มี teardown
+Session lifecycle จัดการที่นี่ผ่าน async generator
 
-Session-per-request: each HTTP request gets its own AsyncSession.
-This is the standard pattern. Do NOT share sessions across requests.
+Session-per-request: HTTP request แต่ละรายการได้รับ AsyncSession ของตัวเอง
+นี่คือ pattern มาตรฐาน ห้าม share session ข้าม request เด็ดขาด
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from app.services.face_service import FaceRegistrationService
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Async generator คืน session ใหม่ต่อ request, rollback อัตโนมัติเมื่อ error"""
     async with async_session_factory() as session:
         try:
             yield session

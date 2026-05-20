@@ -26,6 +26,7 @@ class AttendanceQueryParams(BaseModel):
 
     @model_validator(mode="after")
     def validate_date_range(self) -> "AttendanceQueryParams":
+        """ตรวจสอบช่วงวันที่ห้ามเกิน 90 วัน ป้องกัน query ที่หนักเกินไป"""
         if self.end_date < self.start_date:
             raise ValueError("end_date must be >= start_date")
         delta = (self.end_date - self.start_date).days

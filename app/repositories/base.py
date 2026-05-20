@@ -1,13 +1,10 @@
 """
-Repository กลางแบบ async สำหรับใช้ CRUD ร่วมกัน
+Generic async repository สำหรับ CRUD operations พื้นฐาน
 
-ทุก domain repository จะสืบทอดจาก class นี้
-Generic[T] ช่วยให้ type-safe:
-- IDE autocomplete ทำงานถูกต้อง
-- static type checking แม่นยำขึ้น
-- ลด bug จาก type mismatch
+Domain repository ทั้งหมดสืบทอดมาจากนี้ รูปแบบ Generic[T] ทำให้
+มี type safety ในทุก implementation — ORM model type จะไหลผ่านไปถึง
+IDE completion และ static analysis ได้อัตโนมัติ
 """
-
 from __future__ import annotations
 
 from typing import Generic, Sequence, Type, TypeVar
@@ -24,13 +21,12 @@ ModelT = TypeVar("ModelT", bound=Base)
 
 
 class BaseRepository(Generic[ModelT]):
-
     """
-    Generic repository ที่รองรับ async
+    Async-capable generic repository
 
-    - repository ทำหน้าที่ access database เท่านั้น
-    - transaction จะถูกควบคุมโดย service layer
-    - รองรับ scalability และ multi-repository transaction
+    ทุก method จะรับ session ที่ inject มาจากภายนอก
+    ทำให้ caller (services) สามารถควบคุม transaction boundary ได้
+    รองรับการทำ multi-repository atomic operations ใน transaction เดียวกัน
     """
     def __init__(self, model: Type[ModelT], session: AsyncSession) -> None:
         self._model = model
@@ -53,7 +49,7 @@ class BaseRepository(Generic[ModelT]):
     # สร้าง instance ใหม่ใน database และ return instance ที่มี id และข้อมูลล่าสุดจาก database
     async def create(self, instance: ModelT) -> ModelT:
         self._session.add(instance)
-        await self._session.flush()  # flush เพื่อให้ instance มี id ก่อน refresh
+        await self._session.flush()  # flush ไม่ใช่ commit — ผู้เรียกเป็นคนควบคุม transaction
         await self._session.refresh(instance) # refresh เพื่อดึงข้อมูลล่าสุดจาก database (เช่น id ที่ถูก auto-generated)
         return instance
 
