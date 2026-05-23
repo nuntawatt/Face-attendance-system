@@ -21,9 +21,7 @@ from uuid import UUID
 import cv2
 import numpy as np
 
-# ————————————————————————————————————————————
 # สีที่ใช้ในหน้าจอ (BGR format สำหรับ OpenCV)
-# ————————————————————————————————————————————
 COLOR_GREEN = (80, 220, 100)
 COLOR_BLUE = (230, 160, 50)
 COLOR_RED = (60, 60, 220)
@@ -34,9 +32,7 @@ COLOR_PANEL_BG = (40, 35, 30)
 COLOR_ACCENT = (255, 200, 50)
 COLOR_CYAN = (230, 200, 0)
 
-# ————————————————————————————————————————————
 # Threshold ต่ำสำหรับ demo (ให้แสดง bbox ได้ง่าย)
-# ————————————————————————————————————————————
 MIN_DET_SCORE = 0.35
 RECOGNITION_COOLDOWN = 5.0
 
@@ -202,7 +198,7 @@ async def register_face_flow(frame, face_engine, session_factory):
         # เช็คซ้ำ
         existing = await emp_repo.get_by_employee_code(emp_code)
         if existing:
-            # ถ้ามีอยู่แล้ว → update embedding
+            # ถ้ามีอยู่แล้ว -> update embedding
             emp = existing
         else:
             # สร้างพนักงานใหม่
@@ -237,7 +233,7 @@ async def register_face_flow(frame, face_engine, session_factory):
 async def main():
     """Main loop ของ Kiosk Application"""
 
-    # ——— 1. โหลด AI Engine ———
+    # 1. โหลด AI Engine
     print("[*] Loading AI engine...")
     from app.ai.engine import face_engine
     from app.ai.recognition import embedding_index
@@ -248,14 +244,14 @@ async def main():
     face_engine.load()
     print("[OK] AI engine ready")
 
-    # ——— 2. โหลด Embedding Index ———
+    # 2. โหลด Embedding Index
     print("[*] Loading face embeddings...")
     async with async_session_factory() as session:
         cache = EmbeddingCacheService(session)
         await cache.rebuild_index()
     print(f"[OK] {embedding_index.size} registered faces loaded")
 
-    # ——— 3. โหลดข้อมูลพนักงาน ———
+    # 3. โหลดข้อมูลพนักงาน
     employee_names: dict[str, str] = {}
     async with async_session_factory() as session:
         repo = EmployeeRepository(session)
@@ -267,7 +263,7 @@ async def main():
         print("\n[!] No faces registered yet!")
         print("[!] Press 'R' in the kiosk window to register your face.\n")
 
-    # ——— 4. เปิดกล้อง ———
+    # 4. เปิดกล้อง
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("[ERROR] Cannot open webcam!")
@@ -277,7 +273,7 @@ async def main():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-    # ——— State ———
+    # State
     recent_events: list[dict] = []
     last_recognition: dict[str, float] = {}
     fps = 0.0
@@ -313,12 +309,12 @@ async def main():
                 frame_count = 0
                 fps_timer = time.monotonic()
 
-            # ——— Face Detection ———
+            # Face Detection
             faces = await face_engine.analyze_frame(frame)
             good_faces = [f for f in faces if f.det_score >= MIN_DET_SCORE]
             num_detected = len(good_faces)
 
-            # ——— Recognition + Drawing ———
+            # Recognition + Drawing
             for face in good_faces:
                 name = None
                 confidence = 0.0
@@ -365,12 +361,12 @@ async def main():
 
                 draw_face_overlay(frame, face.bbox, name, confidence, status, face.det_score)
 
-            # ——— Draw UI ———
+            # Draw UI
             draw_header(frame, fps, embedding_index.size, num_detected)
             draw_instructions(frame)
             draw_event_log(frame, recent_events)
 
-            # ——— Register message overlay ———
+            # Register message overlay
             if register_msg and time.monotonic() < register_msg_until:
                 h_f, w_f = frame.shape[:2]
                 overlay = frame.copy()
@@ -386,7 +382,7 @@ async def main():
             if key == ord('q') or key == 27:
                 break
             elif key == ord('r') or key == ord('R'):
-                # ——— Register Mode ———
+                # Register Mode
                 print("\n[REGISTER] Capturing face...")
                 # ถ่ายภาพ frame ปัจจุบัน (ก่อน flip ไม่ต้อง เพราะ flip แล้ว)
                 success, msg, emp_id = await register_face_flow(frame, face_engine, async_session_factory)
