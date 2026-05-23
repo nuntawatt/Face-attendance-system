@@ -1,15 +1,11 @@
 """
-Face Attendance Kiosk — OpenCV Desktop Application
+Face Attendance Kiosk OpenCV Desktop Application
 
 แอปจะเปิดหน้าต่าง OpenCV แสดงภาพจากกล้อง Webcam แบบ real-time
 พร้อมวาด bounding box, ชื่อพนักงาน, ค่าความมั่นใจ และสถานะเข้า-ออกงาน
 
-การใช้งาน:
-    source .venv/bin/activate
-    python run_kiosk.py
-
 คำสั่ง:
-    r     = ลงทะเบียนใบหน้าที่เห็นอยู่ตอนนี้
+    r = ลงทะเบียนใบหน้าที่เห็นอยู่ตอนนี้
     q/ESC = ปิดโปรแกรม
 """
 
@@ -182,7 +178,7 @@ async def register_face_flow(frame, face_engine, session_factory):
     print("=" * 40)
 
     if not emp_code or not full_name:
-        return False, "Registration cancelled — empty input.", None
+        return False, "Registration cancelled empty input.", None
 
     from app.models.employee import Employee
     from app.models.face_embedding import FaceEmbedding
@@ -288,8 +284,8 @@ async def main():
     cv2.resizeWindow(window_name, 1280, 720)
 
     print("\n" + "=" * 50)
-    print("  FACE ATTENDANCE KIOSK")
-    print("  [R] Register   [Q/ESC] Quit")
+    print("FACE ATTENDANCE KIOSK")
+    print("[R] Register [Q/ESC] Quit")
     print("=" * 50 + "\n")
 
     try:
@@ -349,7 +345,7 @@ async def main():
                                 "emp_id": emp_id,
                             })
                             icon = "CHECK-IN" if event_type == "check_in" else "CHECK-OUT"
-                            print(f"  [{icon}] {name}  [{confidence:.0%}]  @ {time_str}")
+                            print(f"[{icon}] {name} [{confidence:.0%}] @ {time_str}")
                         else:
                             for evt in reversed(recent_events):
                                 if evt.get("emp_id") == emp_id:
