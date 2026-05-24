@@ -44,8 +44,6 @@ from app.schemas.face import FaceRegistrationResponse
 
 logger = structlog.get_logger(__name__)
 
-# คะแนนคุณภาพขั้นต่ำสำหรับลงทะเบียน
-MIN_QUALITY_THRESHOLD = 0.4
 # เวอร์ชันโมเดลที่ใช้สำหรับ embedding นี้ เก็บไว้เพื่อ compatibility ในอนาคต
 MODEL_VERSION = f"{settings.face_model_pack}_v1"
 
@@ -86,8 +84,8 @@ class FaceRegistrationService:
         face = faces[0]
 
         # ตรวจสอบคุณภาพ
-        if face.quality_score < MIN_QUALITY_THRESHOLD:
-            raise ImageQualityError(face.quality_score, MIN_QUALITY_THRESHOLD)
+        if face.quality_score < settings.min_image_quality:
+            raise ImageQualityError(face.quality_score, settings.min_image_quality)
 
         # Serialize embedding เป็น bytes สำหรับเก็บใน DB
         embedding_bytes = face.embedding.tobytes()

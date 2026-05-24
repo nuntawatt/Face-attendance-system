@@ -37,7 +37,7 @@ class MinioService:
                 self.client.make_bucket(self.bucket_name)
                 logger.info("minio_bucket_created", bucket=self.bucket_name)
 
-                # Configure public read policy so returned links can be loaded directly in browser
+                # bucket policy ให้ทุกคนอ่านได้ (public read-only) เพื่อให้ URL ที่แชร์ไปสามารถเข้าถึงรูปได้ทันที
                 policy = {
                     "Version": "2012-10-17",
                     "Statement": [

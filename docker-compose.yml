@@ -53,8 +53,8 @@ services:
     image: minio/minio
     container_name: face_attendance_minio
     environment:
-      - MINIO_ROOT_USER=moragon
-      - MINIO_ROOT_PASSWORD=moragon1234
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     ports:
       - "9000:9000"
       - "9001:9001"
