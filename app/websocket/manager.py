@@ -11,10 +11,10 @@ WebSocket connection manager
 ถ้า scale เป็น multi-instance ค่อยเพิ่ม Redis Pub/Sub เป็น transport layer
 โดย manager ยังคงเป็น subscriber ที่ forward ไปยัง local WebSocket clients
 """
+
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
 
 import structlog
 from fastapi import WebSocket
@@ -25,8 +25,10 @@ logger = structlog.get_logger(__name__)
 
 # Event schemas ที่ส่งผ่าน WebSocket
 
+
 class AttendanceEvent(BaseModel):
     """Event ที่ broadcast เมื่อ AI pipeline จำแนกใบหน้าและบันทึก attendance"""
+
     event_type: str  # "check_in" | "check_out"
     employee_id: str
     employee_code: str | None = None
@@ -59,12 +61,14 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket) -> None:
         """รับ connection ใหม่ ส่ง welcome message กลับ"""
         await websocket.accept()
-        async with self._lock: self._connections.add(websocket)
+        async with self._lock:
+            self._connections.add(websocket)
         logger.info("ws_client_connected", total_connections=len(self._connections))
 
     async def disconnect(self, websocket: WebSocket) -> None:
         """ลบ connection ที่หลุด"""
-        async with self._lock:self._connections.discard(websocket)
+        async with self._lock:
+            self._connections.discard(websocket)
         logger.info("ws_client_disconnected", total_connections=len(self._connections))
 
     @property
@@ -83,7 +87,8 @@ class ConnectionManager:
 
         message = event.to_json()
 
-        async with self._lock: clients = list(self._connections)
+        async with self._lock:
+            clients = list(self._connections)
 
         # ส่งพร้อมกันทุก client
         dead_clients: list[WebSocket] = []
@@ -99,7 +104,9 @@ class ConnectionManager:
                 for ws in dead_clients:
                     self._connections.discard(ws)
 
-    async def _safe_send(self, ws: WebSocket, message: str, dead_list: list[WebSocket]) -> None:
+    async def _safe_send(
+        self, ws: WebSocket, message: str, dead_list: list[WebSocket]
+    ) -> None:
         """ส่ง message ไป client ถ้าล้มเหลว เพิ่มเข้า dead_list"""
         try:
             await ws.send_text(message)

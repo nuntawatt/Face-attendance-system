@@ -8,6 +8,7 @@ Request ทุกรายการที่เข้ามาจะได้ร
 ใน Kibana หรือ Datadog: filter ด้วย trace_id เดียว เห็นทุก log ตั้งแต่
 router -> service -> repository -> AI engine ทั้งหมดในหนึ่ง request
 """
+
 from __future__ import annotations
 
 import time
@@ -23,7 +24,6 @@ logger = structlog.get_logger(__name__)
 
 
 class RequestTracingMiddleware(BaseHTTPMiddleware):
-
     async def dispatch(self, request: Request, call_next: Any) -> Response:
         # สร้าง trace_id ใหม่สำหรับแต่ละ request
         trace_id = str(uuid.uuid4())

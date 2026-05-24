@@ -5,6 +5,7 @@ Query ที่เป็นของ domain นี้อยู่ที่นี
 Service layer เรียกใช้แบบระบุชื่อ method ชัดเจน
 ไม่ควรสร้าง SQL condition เองใน service layer เด็ดขาด
 """
+
 from __future__ import annotations
 
 from typing import Sequence
@@ -18,7 +19,6 @@ from app.repositories.base import BaseRepository
 
 
 class EmployeeRepository(BaseRepository[Employee]):
-
     # EmployeeRepository จะสืบทอดจาก BaseRepository โดยระบุ ModelT เป็น Employee
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(Employee, session)
@@ -26,7 +26,9 @@ class EmployeeRepository(BaseRepository[Employee]):
     async def get_by_employee_code(self, code: str) -> Employee | None:
         """ค้นหาพนักงานด้วยรหัสพนักงาน"""
         result = await self._session.execute(
-            select(Employee).where(Employee.employee_code == code, Employee.deleted_at.is_(None))
+            select(Employee).where(
+                Employee.employee_code == code, Employee.deleted_at.is_(None)
+            )
         )
         return result.scalar_one_or_none()
 
@@ -45,7 +47,9 @@ class EmployeeRepository(BaseRepository[Employee]):
     # get_active_employees จะ return list ของ Employee ที่มี is_active = True
     async def get_active_employees(self) -> Sequence[Employee]:
         result = await self._session.execute(
-            select(Employee).where(Employee.is_active == True, Employee.deleted_at.is_(None))  # noqa: E712
+            select(Employee).where(
+                Employee.is_active.is_(True), Employee.deleted_at.is_(None)
+            )
         )
         return result.scalars().all()
 
@@ -61,6 +65,8 @@ class EmployeeRepository(BaseRepository[Employee]):
     # employee_code_exists จะตรวจสอบว่ามี Employee ที่มี employee_code นี้อยู่ใน database หรือไม่
     async def employee_code_exists(self, code: str) -> bool:
         result = await self._session.execute(
-            select(Employee.id).where(Employee.employee_code == code, Employee.deleted_at.is_(None))
+            select(Employee.id).where(
+                Employee.employee_code == code, Employee.deleted_at.is_(None)
+            )
         )
         return result.scalar_one_or_none() is not None

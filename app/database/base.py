@@ -5,6 +5,7 @@ Declarative base และ mixin ร่วมสำหรับ ORM model ทั
 และลดการ copy-paste ระหว่าง model UUID primary key ถูกสร้างฝั่ง application
 เพื่อความคาดเดาได้และหลีกเลี่ยง round-trip ไป database
 """
+
 from __future__ import annotations
 
 import uuid

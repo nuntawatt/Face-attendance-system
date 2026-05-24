@@ -20,6 +20,7 @@ Server จะตอบ "pong" กลับไป
 
 WebSocket connection ไม่ต้อง auth ในตอนนี้ (เพิ่มทีหลังพร้อมกับ HTTP auth)
 """
+
 from __future__ import annotations
 
 import structlog

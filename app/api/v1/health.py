@@ -10,6 +10,7 @@ Health check ตรวจสอบ dependency ที่สำคัญ (DB, Redi
 ถ้าตัวใดตัวหนึ่ง unhealthy ก็ยังคืน 200 แต่ระบุ status ให้ชัดเจน
 เพราะ partial degradation ดีกว่า full downtime
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Request

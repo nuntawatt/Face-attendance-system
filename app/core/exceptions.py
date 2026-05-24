@@ -5,6 +5,7 @@ Domain exception hierarchy
 global handler map exception ไปยัง HTTP status code แบบ declarative
 ห้าม raise HTTPException จาก service หรือ repository layer เด็ดขาด layer เหล่านั้นไม่รู้ว่าตัวเองถูกเรียกจาก HTTP
 """
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -12,6 +13,7 @@ from uuid import UUID
 
 class AppError(Exception):
     """รากของทุก application exception"""
+
     message: str = "เกิดข้อผิดพลาดที่ไม่คาดคิด"
 
     def __init__(self, message: str | None = None) -> None:
@@ -20,6 +22,7 @@ class AppError(Exception):
 
 
 # --- Error 404 Not Found ---
+
 
 class NotFoundError(AppError):
     message = "ไม่พบข้อมูลที่ต้องการ"
@@ -32,6 +35,7 @@ class EmployeeNotFoundError(NotFoundError):
 
 # --- Error 409 Conflict ---
 
+
 class ConflictError(AppError):
     message = "ข้อมูลซ้ำกัน"
 
@@ -42,6 +46,7 @@ class EmployeeCodeConflictError(ConflictError):
 
 
 # --- Error 422 Validation ---
+
 
 class ValidationError(AppError):
     message = "ข้อมูลไม่ถูกต้อง"
@@ -57,12 +62,11 @@ class MultipleFacesError(ValidationError):
 
 class ImageQualityError(ValidationError):
     def __init__(self, score: float, threshold: float) -> None:
-        super().__init__(
-            f"คุณภาพภาพ {score:.2f} ต่ำกว่าเกณฑ์ขั้นต่ำ {threshold:.2f}"
-        )
+        super().__init__(f"คุณภาพภาพ {score:.2f} ต่ำกว่าเกณฑ์ขั้นต่ำ {threshold:.2f}")
 
 
 # --- Error 503 Service Unavailable ---
+
 
 class ServiceUnavailableError(AppError):
     message = "บริการไม่พร้อมใช้งานชั่วคราว"

@@ -16,8 +16,6 @@ Thread-safety: ONNX Runtime session ปลอดภัยสำหรับ infe
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
-from pathlib import Path
 from typing import NamedTuple
 
 import cv2
@@ -64,7 +62,9 @@ class FaceEngine:
             name=self._model_pack,
             providers=self._providers,
         )
-        self._app.prepare(ctx_id=0, det_size=self._det_size, det_thresh=self._det_thresh)
+        self._app.prepare(
+            ctx_id=0, det_size=self._det_size, det_thresh=self._det_thresh
+        )
         logger.info("face engine พร้อมใช้งาน", model=self._model_pack)
 
     @property
@@ -89,12 +89,14 @@ class FaceEngine:
             embedding = face.normed_embedding.astype(np.float32)
             bbox = tuple(face.bbox.astype(int).tolist())
             quality = self._estimate_quality(frame, bbox)
-            results.append(DetectedFace(
-                embedding=embedding,
-                bbox=bbox,
-                det_score=float(face.det_score),
-                quality_score=quality,
-            ))
+            results.append(
+                DetectedFace(
+                    embedding=embedding,
+                    bbox=bbox,
+                    det_score=float(face.det_score),
+                    quality_score=quality,
+                )
+            )
         return results
 
     @staticmethod
@@ -115,6 +117,7 @@ class FaceEngine:
 
 # Singleton ระดับ application ใช้ค่าจาก config
 from app.core.config import settings
+
 face_engine = FaceEngine(
     model_pack=settings.face_model_pack,
     det_size=(settings.face_det_size, settings.face_det_size),

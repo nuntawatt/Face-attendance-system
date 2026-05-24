@@ -10,13 +10,12 @@ Face tracker แบบ IoU สำหรับลด recognition calls
 
 Tracker เป็นแบบ per-camera, per-worker ไม่ share ข้ามกล้อง
 """
+
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
 from uuid import UUID
-
-import numpy as np
 
 
 @dataclass

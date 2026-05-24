@@ -4,6 +4,7 @@ FastAPI application factory
 บางที่สุดเท่าที่จะทำได้ แค่ wire middleware, router,
 exception handler, และ lifespan context ไม่มี business logic ที่นี่เลย
 """
+
 from __future__ import annotations
 
 from fastapi import FastAPI

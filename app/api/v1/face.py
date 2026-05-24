@@ -4,6 +4,7 @@ Face registration API router
 Router สำหรับลงทะเบียนใบหน้าพนักงาน
 รับ image file upload แล้วส่งให้ FaceRegistrationService จัดการ
 """
+
 from __future__ import annotations
 
 from uuid import UUID

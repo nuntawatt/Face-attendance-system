@@ -7,6 +7,7 @@ Environment-based configuration ด้วย Pydantic Settings
 @cached_property บน camera_configs หมายความว่า parsing เกิดขึ้นครั้งเดียว
 ไม่ใช่ทุกครั้งที่เข้าถึง
 """
+
 from __future__ import annotations
 
 import json
@@ -60,7 +61,9 @@ class Settings(BaseSettings):
     minio_secret_key: str = Field("moragon1234", alias="MINIO_SECRET_KEY")
     minio_bucket_name: str = Field("images", alias="MINIO_BUCKET_NAME")
     minio_secure: bool = Field(False, alias="MINIO_SECURE")
-    minio_external_endpoint: str = Field("http://localhost:9000", alias="MINIO_EXTERNAL_ENDPOINT")
+    minio_external_endpoint: str = Field(
+        "http://localhost:9000", alias="MINIO_EXTERNAL_ENDPOINT"
+    )
 
     # AI
     face_model_pack: str = "buffalo_s"

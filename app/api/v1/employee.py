@@ -7,6 +7,7 @@ Router เป็นแค่ dispatcher ที่บาง ไม่มี busin
 Pattern: ทุก endpoint ใช้ response_model ชัดเจน
 เพื่อ documentation และ filter response อัตโนมัติ (ไม่เคย leak field โดยบังเอิญ)
 """
+
 from __future__ import annotations
 
 from uuid import UUID

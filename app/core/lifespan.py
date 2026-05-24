@@ -15,6 +15,7 @@ Application lifespan manager
 ถ้ากล้องตัวหนึ่ง fail กล้องอื่นๆ ต้องทำงานต่อ
 asyncio.gather(*tasks, return_exceptions=True) ทำให้แน่ใจเรื่องนี้
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,9 +27,7 @@ from redis import asyncio as aioredis
 from fastapi import FastAPI
 
 from app.ai.engine import face_engine
-from app.ai.recognition import embedding_index
 from app.attendance.engine import AttendanceEngine
-from app.camera.stream_reader import CameraConfig
 from app.core.config import settings
 from app.database.session import async_session_factory
 from app.services.embedding_cache_service import EmbeddingCacheService

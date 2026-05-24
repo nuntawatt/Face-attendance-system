@@ -56,10 +56,10 @@ async def test_db_soft_delete_integration():
     """Verify soft delete functionality end-to-end using a real local PostgreSQL database transaction."""
     from app.database.session import async_session_factory
     from app.repositories.employee import EmployeeRepository
-    
+
     async with async_session_factory() as session:
         repo = EmployeeRepository(session)
-        
+
         # 1. Create a temporary employee
         emp_code = f"TEMP-{uuid4()}"[:20]
         emp = Employee(
@@ -71,33 +71,34 @@ async def test_db_soft_delete_integration():
         emp = await repo.create(emp)
         await session.flush()
         emp_id = emp.id
-        
+
         # 2. Verify it is searchable via repo
         found = await repo.get_by_id(emp_id)
         assert found is not None
         assert found.deleted_at is None
-        
+
         # 3. Soft delete it
         await repo.delete(found)
         await session.flush()
-        
+
         # 4. Verify repo.get_by_id no longer finds it
         not_found = await repo.get_by_id(emp_id)
         assert not_found is None
-        
+
         # 5. Verify the code exists check no longer finds it
         exists_check = await repo.employee_code_exists(emp_code)
         assert exists_check is False
-        
+
         # 6. Query raw SQL directly to check that the row still exists in DB but has deleted_at set
         # This bypasses the repo's automated filtering
         from sqlalchemy import select
+
         raw_result = await session.execute(
             select(Employee).where(Employee.id == emp_id)
         )
         raw_emp = raw_result.scalar_one_or_none()
         assert raw_emp is not None
         assert raw_emp.deleted_at is not None
-        
+
         # Rollback so we don't leave dirty data in database
         await session.rollback()

@@ -6,6 +6,7 @@ Embedding vector เก็บเป็น BYTEA (numpy array ที่ serialize
 แต่สำหรับโรงงานที่มีพนักงาน < 5,000 คน in-memory FAISS index เร็วกว่า
 DB-side ANN และหลีกเลี่ยง overhead การ operate pgvector
 """
+
 from __future__ import annotations
 
 import uuid
@@ -37,4 +38,6 @@ class FaceEmbedding(UUIDMixin, TimestampMixin, SoftDeleteMixin, Base):
     image_quality_score: Mapped[float | None] = mapped_column(nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
-    employee: Mapped["Employee"] = relationship("Employee", back_populates="face_embedding")  # noqa: F821
+    employee: Mapped["Employee"] = relationship(
+        "Employee", back_populates="face_embedding"
+    )  # noqa: F821

@@ -23,6 +23,7 @@ target_metadata = Base.metadata
 
 config.set_main_option("sqlalchemy.url", str(settings.database_url))
 
+
 # ฟังก์ชันสำหรับรัน migrations ในโหมด offline และ online โดยแยกกันเพื่อรองรับการใช้งานแบบ async
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -47,12 +48,14 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
+
 # ฟังก์ชันสำหรับรัน migrations ในโหมด online โดยใช้ async engine และ connection แบบ async
 def do_run_migrations(connection: Connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
         context.run_migrations()
+
 
 # ฟังก์ชันสำหรับรัน migrations ในโหมด online โดยสร้าง async engine และใช้ connection แบบ async ในการรัน migrations
 async def run_async_migrations() -> None:
@@ -71,6 +74,7 @@ async def run_async_migrations() -> None:
         await connection.run_sync(do_run_migrations)
 
     await connectable.dispose()
+
 
 # ฟังก์ชันสำหรับรัน migrations ในโหมด online โดยตรวจสอบว่าเป็นโหมด offline หรือไม่ และเรียกฟังก์ชันที่เหมาะสม
 def run_migrations_online() -> None:

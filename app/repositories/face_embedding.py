@@ -9,6 +9,7 @@ Embedding ถูกเก็บเป็น float array ดิบใน PostgreS
 Recognition engine ดึง embedding แบบ bulk ตอน startup แล้ว cache ใน Redis/memory
 Repository นี้ถูกเรียกแค่ตอน registration และ cache invalidation เท่านั้น
 """
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -22,7 +23,6 @@ from app.core.timezone import get_local_now
 
 
 class FaceEmbeddingRepository(BaseRepository[FaceEmbedding]):
-
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(FaceEmbedding, session)
 
@@ -31,7 +31,7 @@ class FaceEmbeddingRepository(BaseRepository[FaceEmbedding]):
         result = await self._session.execute(
             select(FaceEmbedding).where(
                 FaceEmbedding.employee_id == employee_id,
-                FaceEmbedding.deleted_at.is_(None)
+                FaceEmbedding.deleted_at.is_(None),
             )
         )
         return result.scalar_one_or_none()
@@ -46,7 +46,7 @@ class FaceEmbeddingRepository(BaseRepository[FaceEmbedding]):
             .join(FaceEmbedding.employee)
             .where(
                 FaceEmbedding.employee.has(is_active=True, deleted_at=None),
-                FaceEmbedding.deleted_at.is_(None)
+                FaceEmbedding.deleted_at.is_(None),
             )
         )
         return list(result.scalars().all())

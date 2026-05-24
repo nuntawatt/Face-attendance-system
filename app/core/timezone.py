@@ -5,6 +5,7 @@ This module ensures that all datetimes and dates generated across servers
 consistently use the Asia/Bangkok local timezone, preventing mismatches
 when deployed to servers in other regions.
 """
+
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 

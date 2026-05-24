@@ -31,10 +31,10 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-PROCESS_INTERVAL_SEC = 1.0    # ประมวลผล 1 frame ต่อวินาที ต่อกล้อง
-RECONNECT_DELAY_BASE = 2.0    # วินาทีก่อน reconnect ครั้งแรก
-RECONNECT_DELAY_MAX = 30.0    # ขีดสูงสุดของ reconnect backoff
-FRAME_READ_TIMEOUT = 5.0      # วินาทีก่อนประกาศ stream dead
+PROCESS_INTERVAL_SEC = 1.0  # ประมวลผล 1 frame ต่อวินาที ต่อกล้อง
+RECONNECT_DELAY_BASE = 2.0  # วินาทีก่อน reconnect ครั้งแรก
+RECONNECT_DELAY_MAX = 30.0  # ขีดสูงสุดของ reconnect backoff
+FRAME_READ_TIMEOUT = 5.0  # วินาทีก่อนประกาศ stream dead
 
 
 @dataclass
@@ -81,7 +81,9 @@ async def stream_frames(
                 )
 
                 if not ret:
-                    logger.warning("camera_frame_read_failed", camera_id=config.camera_id)
+                    logger.warning(
+                        "camera_frame_read_failed", camera_id=config.camera_id
+                    )
                     break
 
                 now = time.monotonic()
@@ -92,13 +94,17 @@ async def stream_frames(
         except asyncio.TimeoutError:
             logger.warning("camera_read_timeout", camera_id=config.camera_id)
         except Exception as exc:
-            logger.exception("camera_stream_error", camera_id=config.camera_id, error=str(exc))
+            logger.exception(
+                "camera_stream_error", camera_id=config.camera_id, error=str(exc)
+            )
         finally:
             await asyncio.to_thread(cap.release)
             logger.info("camera_disconnected", camera_id=config.camera_id)
 
 
-def _open_capture(rtsp_url: str, resolution: tuple[int, int]) -> cv2.VideoCapture | None:
+def _open_capture(
+    rtsp_url: str, resolution: tuple[int, int]
+) -> cv2.VideoCapture | None:
     """เรียกใน thread pool OpenCV blocking operation ปลอดภัยที่นี่"""
     # ถ้าค่าเป็นตัวเลข (เช่น "0") ให้ใช้ Webcam บนเครื่องแทน RTSP
     if rtsp_url.isdigit():

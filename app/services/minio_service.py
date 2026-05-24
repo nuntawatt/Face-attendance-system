@@ -1,6 +1,7 @@
 """
 MinIO client service for managing face images and attendance snapshots.
 """
+
 from __future__ import annotations
 
 import io

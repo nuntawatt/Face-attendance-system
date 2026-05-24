@@ -11,13 +11,14 @@ Pydantic v2 schemas สำหรับ Employee domain
 ป้องกัน over-posting (client ไม่สามารถตั้ง face_registered โดยตรงได้)
 และ under-exposure (ไม่เคย leak internal DB fields)
 """
+
 from __future__ import annotations
 
 import re
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class EmployeeBase(BaseModel):
@@ -35,7 +36,9 @@ class EmployeeBase(BaseModel):
         """รหัสพนักงานต้องเป็นตัวอักษร ตัวเลข หรือขีดกลางเท่านั้น"""
         v = v.strip().upper()
         if not re.match(r"^[A-Z0-9\-]+$", v):
-            raise ValueError("Employee code must contain only alphanumeric characters and hyphens")
+            raise ValueError(
+                "Employee code must contain only alphanumeric characters and hyphens"
+            )
         return v
 
     @field_validator("full_name")
@@ -51,6 +54,7 @@ class EmployeeCreate(EmployeeBase):
 
 class EmployeeUpdate(BaseModel):
     """ทุก field เป็น optional สำหรับ PATCH semantics แก้ได้แค่ field ที่ส่งมา"""
+
     full_name: str | None = Field(None, min_length=2, max_length=200)
     department: str | None = Field(None, min_length=2, max_length=100)
     position: str | None = Field(None, min_length=2, max_length=100)
@@ -61,7 +65,7 @@ class EmployeeUpdate(BaseModel):
 
 
 class EmployeeResponse(EmployeeBase):
-    model_config = ConfigDict(from_attributes=True) # อ่านค่าจาก ORM object ได้โดยตรง
+    model_config = ConfigDict(from_attributes=True)  # อ่านค่าจาก ORM object ได้โดยตรง
 
     id: UUID
     is_active: bool
