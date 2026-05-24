@@ -132,7 +132,7 @@ PYTHONPATH=. ./.venv/bin/pytest -v
 
 ---
 
-## 📂 โครงสร้างโฟลเดอร์ของโครงการ (Directory Structure)
+## 📂 Directory Structure
 
 ```
 .
