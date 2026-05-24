@@ -1,186 +1,167 @@
-# Face Attendance System 🎭
+# ระบบบันทึกเวลาทำงานด้วยใบหน้า (Face Attendance System) 🎭
 
-A highly performant, AI-powered Face Recognition and Attendance tracking system built with modern Python technologies. This backend application leverages **FastAPI** for lightning-fast API responses, **InsightFace** for state-of-the-art facial recognition, **MinIO** for secure face image storage, and background camera stream processing.
-
----
-
-## 🌟 Features
-
-- **AI Face Recognition**: Powered by InsightFace (`buffalo_l` / `buffalo_s` model) for highly accurate face detection, landmark extraction, and recognition.
-- **MinIO Image Storage**: Automatically crops detected faces, uploads them under random UUID names to a public `images` bucket in MinIO, and persists direct image links in the database.
-- **Robust Timezone Alignment**: Configured with `Asia/Bangkok` timezone rules to eliminate server-dependent date mismatches (e.g. AWS/Render UTC issues).
-- **Soft Delete Support**: Protects auditing trails across all database entities using a `deleted_at` timestamp.
-- **Asynchronous Architecture**: Built entirely on `asyncio`, utilizing FastAPI, AsyncPG, and async Redis for non-blocking I/O operations.
-- **Background Camera Workers**: Continuously processes RTSP streams in background tasks without blocking the main API thread.
-- **In-Memory Embedding Cache**: Automatically rebuilds face embedding indexes in memory on startup for real-time comparison.
-- **Clean Architecture**: Domain-driven directory structure with clear separation of routers, services, repositories, and models.
+ระบบหลังบ้าน (Backend API) สำหรับบันทึกเวลาเข้า-ออกงานด้วยใบหน้าแบบ Realtime พัฒนาด้วย **FastAPI** ควบคู่กับโมเดล AI **InsightFace** สำหรับตรวจจับและจำแนกใบหน้า พร้อมระบบจัดเก็บไฟล์รูปภาพใบหน้าใน **MinIO Object Storage** และรองรับการทำ **Soft Delete** เพื่อความปลอดภัยของข้อมูล
 
 ---
 
-## 🛠️ Tech Stack
+## 🌟 ฟีเจอร์เด่นของระบบ
 
-- **Framework**: [FastAPI](https://fastapi.tiangolo.com/)
-- **Database**: PostgreSQL (with [SQLAlchemy 2.0](https://www.sqlalchemy.org/) & AsyncPG)
-- **Object Storage**: [MinIO](https://min.io/) (with standard `minio` SDK)
-- **Caching & Message Broker**: Redis (`redis.asyncio`)
-- **AI/CV Models**: [InsightFace](https://github.com/deepinsight/insightface), ONNXRuntime, OpenCV, Pillow
-- **Validation**: Pydantic v2
-- **Testing**: Pytest with `pytest-asyncio` & `pytest-mock`
+1. **สแกนใบหน้าด้วย AI แม่นยำสูง**: ใช้โมเดล InsightFace (`buffalo_l` / `buffalo_s`) เพื่อสแกน ค้นหา และจดจำใบหน้าได้รวดเร็ว
+2. **เก็บรูปภาพใบหน้าอัตโนมัติ (MinIO)**: เมื่อสแกนผ่าน ระบบจะตัดเฉพาะภาพใบหน้า (Face Crop) บันทึกขึ้น MinIO ด้วยชื่อไฟล์แบบ UUID ป้องกันการซ้ำซ้อน และบันทึก URL ลงในฐานข้อมูลทันที
+3. **จัดการเขตเวลาถูกต้องแม่นยำ (Timezone Asia/Bangkok)**: ล็อกเขตเวลาของเซิร์ฟเวอร์เป็นเวลาประเทศไทย ป้องกันการเช็คอินผิดวันเมื่อนำไป Deploy บนคลาวด์ต่างประเทศ (เช่น AWS/Render ที่ปกติเป็นเวลา UTC)
+4. **ลบข้อมูลแบบปลอดภัย (Soft Delete)**: ตารางข้อมูลหลักมีคอลัมน์ `deleted_at` ป้องกันการลบข้อมูลแบบถาวรโดยไม่ได้ตั้งใจ เพื่อให้สามารถตรวจสอบย้อนหลัง (Audit Trail) ได้ตลอดเวลา
+5. **ดึงข้อมูลความเร็วสูง**: มีระบบแคชใบหน้าใน memory (In-Memory Embedding Cache) ทำให้สแกนและเปรียบเทียบใบหน้าได้แบบ Realtime ไม่ต้องโหลดข้อมูลจากฐานข้อมูลใหม่ทุกครั้ง
 
 ---
 
-## 📚 Data Dictionary (พจนานุกรมข้อมูล)
+## 🛠️ เทคโนโลยีที่เลือกใช้ (Tech Stack)
 
-ระบบ Face Attendance System ใช้ PostgreSQL เป็นฐานข้อมูลหลัก มีตารางข้อมูล (Tables) ทั้งหมด 3 ตารางหลัก ดังนี้:
+- **Backend Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Python 3.11+)
+- **Database**: PostgreSQL (สตรีมผ่าน [SQLAlchemy 2.0](https://www.sqlalchemy.org/) และ AsyncPG)
+- **Object Storage**: [MinIO](https://min.io/) (เก็บไฟล์รูปภาพ)
+- **Caching & Broker**: Redis (ใช้ควบคุมคิวการรับส่งข้อมูล)
+- **AI & Computer Vision**: [InsightFace](https://github.com/deepinsight/insightface), ONNXRuntime, OpenCV, Pillow (รองรับรูปภาพ .png, .jpg, .jpeg, .webp, .bmp)
 
-### 1. Table: `employees`
-**คำอธิบาย:** เก็บข้อมูลประวัติส่วนตัวและการทำงานของพนักงาน รวมถึงสถานะว่าลงทะเบียนใบหน้าแล้วหรือยัง
+---
 
-| Column Name | Data Type (SQL) | Constraints | Default | Description (คำอธิบาย) |
+## 📚 โครงสร้างฐานข้อมูล (Data Dictionary)
+
+ฐานข้อมูลหลักแบ่งออกเป็น 3 ตารางหลัก ดังนี้:
+
+### 1. ตาราง: `employees` (ข้อมูลพนักงาน)
+> เก็บประวัติส่วนตัวและสถานะการทำงานทั่วไปของพนักงาน
+
+| ชื่อคอลัมน์ (Column) | ประเภทข้อมูล (Data Type) | ข้อจำกัด (Constraints) | ค่าเริ่มต้น (Default) | คำอธิบาย (Description) |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | `UUID` | **PK**, Not Null | `uuid4()` | รหัสประจำตัวอ้างอิงระดับฐานข้อมูล |
-| `employee_code` | `VARCHAR(50)` | **Unique**, Indexed, Not Null | - | รหัสพนักงาน (เช่น EMP-001) ใช้ล็อกอิน/อ้างอิง |
-| `full_name` | `VARCHAR(200)` | Not Null | - | ชื่อ-นามสกุล ของพนักงาน |
-| `department` | `VARCHAR(100)` | Indexed, Not Null | - | แผนกหรือฝ่ายที่สังกัด |
-| `position` | `VARCHAR(100)` | Not Null | - | ตำแหน่งงาน |
-| `email` | `VARCHAR(255)` | **Unique**, Nullable | `NULL` | อีเมลสำหรับการติดต่อ |
-| `phone` | `VARCHAR(20)` | Nullable | `NULL` | เบอร์โทรศัพท์ |
-| `notes` | `TEXT` | Nullable | `NULL` | หมายเหตุหรือข้อมูลเพิ่มเติม |
-| `is_active` | `BOOLEAN` | Not Null | `TRUE` | สถานะการทำงาน (`TRUE`=ทำงาน, `FALSE`=ลาออก/พักงาน) |
-| `face_registered` | `BOOLEAN` | Not Null | `FALSE` | สถานะการลงทะเบียนใบหน้า (`TRUE`=ลงทะเบียนแล้ว) |
-| `created_at` | `TIMESTAMPTZ` | Not Null | `now()` | วัน-เวลาที่สร้าง record นี้ |
-| `updated_at` | `TIMESTAMPTZ` | Not Null | `now()` | วัน-เวลาที่แก้ไข record นี้ล่าสุด |
-| `deleted_at` | `TIMESTAMPTZ` | Nullable | `NULL` | วัน-เวลาที่พนักงานถูกลบออก (สำหรับ **Soft Delete**) |
+| `id` | `UUID` | **PK**, ห้ามว่าง | `uuid4()` | รหัสอ้างอิงพนักงานระดับฐานข้อมูล |
+| `employee_code` | `VARCHAR(50)` | **Unique**, Indexed, ห้ามว่าง | - | รหัสพนักงาน (เช่น EMP-001) ใช้เชื่อมโยงระบบอื่น |
+| `full_name` | `VARCHAR(200)` | ห้ามว่าง | - | ชื่อ - นามสกุล ของพนักงาน |
+| `department` | `VARCHAR(100)` | Indexed, ห้ามว่าง | - | แผนกหรือฝ่ายที่สังกัด |
+| `position` | `VARCHAR(100)` | ห้ามว่าง | - | ตำแหน่งงานของพนักงาน |
+| `email` | `VARCHAR(255)` | **Unique**, ว่างได้ | `NULL` | อีเมลสำหรับติดต่อ |
+| `phone` | `VARCHAR(20)` | ว่างได้ | `NULL` | เบอร์โทรศัพท์พนักงาน |
+| `notes` | `TEXT` | ว่างได้ | `NULL` | หมายเหตุหรือรายละเอียดเพิ่มเติม |
+| `is_active` | `BOOLEAN` | ห้ามว่าง | `TRUE` | สถานะการทำงาน (`TRUE`=ยังอยู่, `FALSE`=พ้นสภาพ) |
+| `face_registered` | `BOOLEAN` | ห้ามว่าง | `FALSE` | สถานะการลงทะเบียนใบหน้า (`TRUE`=ลงทะเบียนแล้ว) |
+| `created_at` | `TIMESTAMPTZ` | ห้ามว่าง | `now()` | วัน-เวลาที่บันทึกข้อมูลเข้าระบบ |
+| `updated_at` | `TIMESTAMPTZ` | ห้ามว่าง | `now()` | วัน-เวลาที่มีการแก้ไขข้อมูลล่าสุด |
+| `deleted_at` | `TIMESTAMPTZ` | ว่างได้ | `NULL` | วัน-เวลาที่ลบพนักงานออกจากระบบ (**Soft Delete**) |
 
 ---
 
-### 2. Table: `face_embeddings`
-**คำอธิบาย:** เก็บข้อมูลลักษณะทางชีวมิติของใบหน้า (Biometrics Vector) แยกตารางเพื่อลดภาระการโหลดข้อมูลพนักงานทั่วไป
+### 2. ตาราง: `face_embeddings` (ชุดเวกเตอร์ใบหน้าของพนักงาน)
+> เก็บ Biometric Vector ของใบหน้าพนักงาน ใช้สำหรับเปรียบเทียบตอนสแกนเข้างาน
 
-| Column Name | Data Type (SQL) | Constraints | Default | Description (คำอธิบาย) |
+| ชื่อคอลัมน์ (Column) | ประเภทข้อมูล (Data Type) | ข้อจำกัด (Constraints) | ค่าเริ่มต้น (Default) | คำอธิบาย (Description) |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | `UUID` | **PK**, Not Null | `uuid4()` | รหัสประจำตัวอ้างอิงระดับฐานข้อมูล |
-| `employee_id` | `UUID` | **FK** (`employees.id`), **Unique**, Indexed, Not Null | - | อ้างอิงรหัสพนักงาน (1 พนักงาน มีได้ 1 ใบหน้าเท่านั้น) |
-| `embedding_vector` | `BYTEA` | Not Null | - | ข้อมูล Vector 512 มิติ ที่ได้จาก AI (Serialize เป็น Binary) |
-| `model_version` | `VARCHAR(50)` | Not Null | - | เวอร์ชันของ AI Model ที่สร้าง Vector (เช่น `buffalo_l_v1`) |
-| `image_quality_score` | `FLOAT` | Nullable | `NULL` | คะแนนความคมชัดของใบหน้าตอนลงทะเบียน (0.0 - 1.0) |
-| `image_url` | `VARCHAR(512)` | Nullable | `NULL` | ลิงก์รูปภาพใบหน้าพนักงานที่เซฟไว้ใน MinIO |
-| `created_at` | `TIMESTAMPTZ` | Not Null | `now()` | วัน-เวลาที่สร้าง record นี้ |
-| `updated_at` | `TIMESTAMPTZ` | Not Null | `now()` | วัน-เวลาที่แก้ไข record นี้ล่าสุด |
-| `deleted_at` | `TIMESTAMPTZ` | Nullable | `NULL` | วัน-เวลาที่ข้อมูลใบหน้าถูกลบออก (สำหรับ **Soft Delete**) |
+| `id` | `UUID` | **PK**, ห้ามว่าง | `uuid4()` | รหัสอ้างอิงระดับฐานข้อมูล |
+| `employee_id` | `UUID` | **FK** (`employees.id`), **Unique**, ห้ามว่าง | - | เชื่อมกับพนักงาน (1 พนักงาน มีได้ 1 ใบหน้าเท่านั้น) |
+| `embedding_vector` | `BYTEA` | ห้ามว่าง | - | เวกเตอร์ลักษณะใบหน้า 512 มิติ ที่ AI คำนวณได้ |
+| `model_version` | `VARCHAR(50)` | ห้ามว่าง | - | เวอร์ชันโมเดล AI ที่ใช้ (เช่น `buffalo_l_v1`) |
+| `image_quality_score`| `FLOAT` | ว่างได้ | `NULL` | คะแนนความคมชัดของภาพถ่ายตอนลงทะเบียน (0.0 - 1.0) |
+| `image_url` | `VARCHAR(512)` | ว่างได้ | `NULL` | ลิงก์รูปภาพใบหน้าพนักงานที่บันทึกไว้ในระบบ MinIO |
+| `created_at` | `TIMESTAMPTZ` | ห้ามว่าง | `now()` | วัน-เวลาที่ลงทะเบียนใบหน้า |
+| `updated_at` | `TIMESTAMPTZ` | ห้ามว่าง | `now()` | วัน-เวลาที่แก้ไขชุดใบหน้าล่าสุด |
+| `deleted_at` | `TIMESTAMPTZ` | ว่างได้ | `NULL` | วัน-เวลาที่ลบชุดข้อมูลใบหน้า (**Soft Delete**) |
 
-> ⚠️ **Constraint:** คอลัมน์ `employee_id` ตั้งค่าไว้เป็น **Cascade Delete** หากพนักงานถูกลบออกจากตาราง `employees` ข้อมูลใบหน้าจะหายไปอัตโนมัติ
+> ⚠️ **หมายเหตุ:** `employee_id` เป็นแบบ **Cascade Delete** หากลบข้อมูลพนักงานในตารางหลัก ใบหน้าในตารางนี้จะถูกลบตามทันที
 
 ---
 
-### 3. Table: `attendance_records`
-**คำอธิบาย:** เก็บประวัติการเข้า-ออกงานของพนักงานแบบรายวัน
+### 3. ตาราง: `attendance_records` (ประวัติการสแกนเข้า-ออกงานประจำวัน)
+> เก็บประวัติเวลาการทำงานประจำวันของพนักงานทุกคน
 
-| Column Name | Data Type (SQL) | Constraints | Default | Description (คำอธิบาย) |
+| ชื่อคอลัมน์ (Column) | ประเภทข้อมูล (Data Type) | ข้อจำกัด (Constraints) | ค่าเริ่มต้น (Default) | คำอธิบาย (Description) |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | `UUID` | **PK**, Not Null | `uuid4()` | รหัสประจำตัวอ้างอิงระดับฐานข้อมูล |
-| `employee_id` | `UUID` | **FK** (`employees.id`), Indexed, Not Null | - | อ้างอิงรหัสพนักงานที่ทำการสแกน |
-| `work_date` | `DATE` | Indexed, Not Null | - | วันที่ทำงาน (อิงตามเขตเวลา `Asia/Bangkok`) |
-| `check_in_time` | `TIMESTAMPTZ` | Not Null | - | เวลาเช็คอินครั้งแรกของวัน |
-| `check_out_time` | `TIMESTAMPTZ` | Nullable | `NULL` | เวลาเช็คเอาท์ (อัปเดตเมื่อเกิน 10 นาทีหรือจบวัน) |
-| `camera_id` | `VARCHAR(100)` | Not Null | - | รหัสของกล้องวงจรปิดหรือ Kiosk ที่ใช้สแกน |
-| `confidence_score` | `FLOAT` | Not Null | - | ค่าความมั่นใจของ AI ว่าเป็นบุคคลนี้จริง (%) |
-| `status` | `VARCHAR(20)` | Not Null | `'present'` | สถานะ: `present` (มา), `late` (สาย), `early_leave` (กลับก่อน) |
-| `image_url` | `VARCHAR(512)` | Nullable | `NULL` | ลิงก์รูปภาพขณะสแกนเช็คอิน/เช็คเอาท์ในวันนั้น เซฟใน MinIO |
-| `created_at` | `TIMESTAMPTZ` | Not Null | `now()` | วัน-เวลาที่สร้าง record นี้ |
-| `updated_at` | `TIMESTAMPTZ` | Not Null | `now()` | วัน-เวลาที่แก้ไข record นี้ล่าสุด |
-| `deleted_at` | `TIMESTAMPTZ` | Nullable | `NULL` | วัน-เวลาที่บันทึกนี้ถูกลบออก (สำหรับ **Soft Delete**) |
+| `id` | `UUID` | **PK**, ห้ามว่าง | `uuid4()` | รหัสอ้างอิงระดับฐานข้อมูล |
+| `employee_id` | `UUID` | **FK** (`employees.id`), Indexed, ห้ามว่าง | - | พนักงานที่สแกนใบหน้าเข้างาน |
+| `work_date` | `DATE` | Indexed, ห้ามว่าง | - | วันที่ทำงาน (อิงตามเวลาไทย `Asia/Bangkok` เสมอ) |
+| `check_in_time` | `TIMESTAMPTZ` | ห้ามว่าง | - | เวลาที่สแกนใบหน้าเข้างานสำเร็จครั้งแรกของวัน |
+| `check_out_time` | `TIMESTAMPTZ` | ว่างได้ | `NULL` | เวลาสแกนออกงานล่าสุด (ระบบจะสลับเช็คเอาท์หลังผ่านไป 10 นาที) |
+| `camera_id` | `VARCHAR(100)` | ห้ามว่าง | - | ไอดีกล้องหรืออุปกรณ์ Kiosk ที่ใช้สแกน |
+| `confidence_score` | `FLOAT` | ห้ามว่าง | - | คะแนนความแม่นยำของใบหน้า (%) |
+| `status` | `VARCHAR(20)` | ห้ามว่าง | `'present'` | สถานะ: `present` (มาทำงานปกติ), `late` (สาย), `early_leave` (กลับก่อนเวลา) |
+| `image_url` | `VARCHAR(512)` | ว่างได้ | `NULL` | ลิงก์รูปภาพถ่ายสดใบหน้าตอนที่สแกนผ่านจริงใน MinIO |
+| `created_at` | `TIMESTAMPTZ` | ห้ามว่าง | `now()` | วัน-เวลาที่สร้างบันทึกนี้เข้าระบบ |
+| `updated_at` | `TIMESTAMPTZ` | ห้ามว่าง | `now()` | วัน-เวลาที่อัปเดตข้อมูลล่าสุด |
+| `deleted_at` | `TIMESTAMPTZ` | ว่างได้ | `NULL` | วัน-เวลาที่ลบบันทึกประวัตินี้ออก (**Soft Delete**) |
 
-> ⚠️ **Constraint (Multi-column Unique):** ตารางนี้มีการบังคับ `UniqueConstraint("employee_id", "work_date")` เพื่อป้องกันพนักงานเช็คอินซ้ำซ้อนในวันเดียวกัน
+> ⚠️ **หมายเหตุ:** มีคีย์ประกอบแบบพิเศษ `UniqueConstraint("employee_id", "work_date")` ควบคุมอยู่เพื่อห้ามสร้างแถวบันทึกเวลาซ้ำซ้อนในวันเดียวกัน
 
 ---
 
-## ✨ Getting Started
+## ⚡ วิธีการติดตั้งและรันระบบ (Quick Start)
 
-### Prerequisites
-- Python 3.11+
-- PostgreSQL 17
-- Redis 8
-- Docker
+### 1. เปิดใช้งานบริการผ่าน Docker (MinIO, Postgres, Redis)
+ระบบต้องการฐานข้อมูล PostgreSQL, แคช Redis และพื้นที่เก็บรูป MinIO ในการทำงาน:
 
-### 1. Docker Service Commands (MinIO, Postgres, Redis)
-
-The orchestration spins up MinIO, PostgreSQL, and Redis automatically.
-- **MinIO Web Portal**: [http://localhost:9001](http://localhost:9001)
-- **MinIO API Port**: `9000`
-- **Root Admin User**: `moragon`
-- **Root Admin Password**: `moragon1234`
+- **ลิงก์หน้าจัดการ MinIO Web Console**: [http://localhost:9001](http://localhost:9001)
+- **ข้อมูลเข้าระบบ MinIO**: User: `moragon` / Password: `moragon1234`
+- **ชื่อโฟลเดอร์เก็บภาพ (Bucket)**: `images` (ระบบสร้างให้อัตโนมัติเมื่อเริ่มโปรแกรมครั้งแรก)
 
 ```bash
-# Start all background services (MinIO, Postgres, Redis)
+# สั่งเปิดฐานข้อมูลและ Object Storage ในโหมดพื้นหลัง
 docker compose up -d minio postgres redis
 
-# Build and run complete application stack
-docker compose up -d --build
-
-# View real-time logs
-docker compose logs -f
-
-# Stop containers
-docker compose stop
+# ตรวจเช็คสถานะการทำงานของตู้คอนเทนเนอร์
+docker compose ps
 ```
 
-### 2. Local Backend Server Setup
+### 2. ตั้งค่าการรันระบบหลังบ้าน (FastAPI Server)
 
-To run the FastAPI server locally on your host machine:
-
-1. **Activate your virtual environment**:
+1. **สร้างและเรียกใช้งาน Virtual Environment**:
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
    ```
 
-2. **Install dependencies**:
+2. **ติดตั้งปลั๊กอินและ Dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Apply Database Schema Migration**:
+3. **อัปเดตสคีมาฐานข้อมูล (Run Database Migrations)**:
    ```bash
    alembic upgrade head
    ```
 
-4. **Start the API server**:
+4. **สั่งรันเซิร์ฟเวอร์หลังบ้าน**:
    ```bash
    uvicorn app.main:app --reload
    ```
+   *หมายเหตุ: สามารถเข้าเช็ค Interactive API Documents (Swagger) ได้ที่ [http://localhost:8000/docs](http://localhost:8000/docs)*
 
 ---
 
-## 🧪 Testing
+## 🧪 วิธีการทดสอบระบบ (Testing)
 
-The project utilizes `pytest` alongside standard DB transaction rollbacks to test functionality safely:
+เราเขียนชุดทดสอบ (Unit & Integration Tests) เพื่อตรวจสอบความถูกต้องของ Timezone, สิทธิ์การเขียนตารางฐานข้อมูล, Soft Delete และการอัปโหลดไฟล์ขึ้น MinIO อย่างครบถ้วน:
 
 ```bash
-# Run all tests (including timezone, soft delete DB transaction, and S3 upload tests)
+# รันการทดสอบระบบทั้งหมดในทีเดียว
 PYTHONPATH=. ./.venv/bin/pytest -v
 ```
 
 ---
 
-## 📂 Project Structure
+## 📂 โครงสร้างโฟลเดอร์ของโครงการ (Directory Structure)
 
 ```
 .
-├── alembic/           # Database migration revisions and env config
+├── alembic/           # ไฟล์ควบคุมการอัปเดตและปรับโครงสร้างตารางฐานข้อมูล
 ├── app/
-│   ├── ai/            # InsightFace ONNX engine and recognition logic
-│   ├── api/           # FastAPI routers (v1 endpoints)
-│   ├── attendance/    # Background camera workers and attendance engine
-│   ├── core/          # Lifespan, Exceptions, Logging, Config, Timezone
-│   ├── database/      # SQLAlchemy AsyncSession factories and Mixins
-│   ├── models/        # Database ORM entity models
-│   ├── repositories/  # Database access layer and query builders
-│   ├── schemas/       # Pydantic data schemas
-│   └── services/      # Business logic, caching, MinIO uploading
-├── tests/             # Pytest unit and integration test suites
-├── Dockerfile         # API Docker build instructions
-├── docker-compose.yml # Service container orchestration
-├── requirements.txt   # Declared Python dependencies
-└── run_kiosk.py       # Standalone OpenCV terminal Kiosk app
+│   ├── ai/            # ตรรกะตรวจจับใบหน้าและวิเคราะห์ AI (InsightFace ONNX)
+│   ├── api/           # ตัวจัดเส้นทางและ Endpoint API ต่างๆ (FastAPI Router v1)
+│   ├── attendance/    # เครื่องมืออ่านเฟรมวิดีโอกล้อง RTSP และประมวลเวลาเข้างานประจำวัน
+│   ├── core/          # ตัวตั้งค่าระบบ, ดักจับข้อผิดพลาด, ระบบเวลาประเทศไทย (Timezone)
+│   ├── database/      # สคริปต์เชื่อมต่อฐานข้อมูล Mixins และคีย์ UUID
+│   ├── models/        # ตาราง ORM Models (สัญญาข้อมูลกับตาราง PostgreSQL)
+│   ├── repositories/  # เลเยอร์จัดการคำสั่งคิวรี SQL หลักแบบตัดการลบตรง
+│   ├── schemas/       # สคีมารองรับและตรวจสอบความถูกต้องของข้อมูล (Pydantic)
+│   └── services/      # บริการหลักของธุรกิจ, การประมวลผลระบบแคช, และการอัปโหลดภาพใบหน้าขึ้น MinIO
+├── tests/             # ไฟล์ทดสอบสคริปต์ (Pytest)
+├── Dockerfile         # คำสั่งสร้างอิมเมจ API ของระบบ
+├── docker-compose.yml # จัดระเบียบการเชื่อมโยงระบบฐานข้อมูล, คีย์เวิร์ด และ MinIO
+├── requirements.txt   # รายชื่อแพ็กเกจระบบควบคุมการรันภาษา Python
+└── run_kiosk.py       # แอปพลิเคชันจำลองหน้าตู้นำทางด้วยกล้องสแกน OpenCV
 ```
