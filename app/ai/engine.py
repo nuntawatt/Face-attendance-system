@@ -148,4 +148,5 @@ face_engine = FaceEngine(
     model_pack=settings.face_model_pack,
     det_size=(settings.face_det_size, settings.face_det_size),
     det_thresh=settings.face_det_threshold,
+    providers=settings.face_providers,
 )
