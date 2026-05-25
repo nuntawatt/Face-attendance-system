@@ -1,16 +1,17 @@
 # Face Attendance System 🎭
 
-ระบบหลังบ้าน สำหรับบันทึกเวลาเข้า-ออกงานด้วยใบหน้า พัฒนาด้วย FastAPI ควบคู่กับโมเดล AI InsightFace สำหรับตรวจจับและจำแนกใบหน้า ผมทำมาเพื่อแก้ปัญหาภายในองค์กร ซึ่งจะเข้ามาช่วยลดต้นทุนของผู้บริหาร ในการลงทุนกับโปรแกรมที่มีอยู่แล้วในท้องตลาด
+ระบบหลังบ้าน สำหรับบันทึกเวลาเข้า-ออกงานด้วยใบหน้า พัฒนาด้วย FastAPI ควบคู่กับโมเดล AI InsightFace สำหรับตรวจจับและจำแนกใบหน้า เพื่อแก้ปัญหาภายในองค์กร ช่วยลดต้นทุนของผู้บริหารในการลงทุนกับระบบที่มีอยู่แล้วในท้องตลาด
 
 ---
 
-## 🌟 Feature
+## 🌟 Features
 
-1. **สแกนใบหน้าด้วย AI แม่นยำสูง**: ใช้โมเดล InsightFace (`buffalo_l` / `buffalo_s`) เพื่อสแกน ค้นหา และจดจำใบหน้า
-2. **เก็บรูปภาพใบหน้า (MinIO)**: เมื่อสแกนผ่าน ระบบจะตัดเฉพาะภาพใบหน้า (Face Crop) บันทึกเข้า MinIO เพื่อจัดเก็บรูปภาพในรูปแบบ UUID
-3. **จัดการเขตเวลาถูกต้องแม่นยำ (Timezone Asia/Bangkok)**: ล็อกเขตเวลาของเซิร์ฟเวอร์เป็นเวลาประเทศไทย ป้องกันการเช็คอินผิดวันเมื่อนำไป Deploy บนคลาวด์ต่างประเทศ (เช่น AWS/Render ที่ปกติเป็นเวลา UTC)
-4. **ดึงข้อมูลความเร็วสูง**: มีระบบแคชใบหน้าใน memory (In-Memory Embedding Cache) ทำให้สแกนและเปรียบเทียบใบหน้าได้รวดเร็วทันที โดยไม่ต้องโหลดข้อมูลจากฐานข้อมูลใหม่ทุกครั้ง
-5. **แจ้งเตือนข้อมูล Realtime**: แจ้งเตือนและอัปเดตผลการสแกนเข้า-ออกงานของพนักงานไปยังหน้า Dashboard ได้ทันทีแบบ Realtime ผ่านการเชื่อมต่อด้วย WebSockets
+1. **สแกนใบหน้าด้วย AI แม่นยำสูง**: ใช้โมเดล InsightFace (`buffalo_l`) เพื่อตรวจจับ, จัดตำแหน่ง และเข้ารหัสลายพิมพ์ใบหน้าได้อย่างแม่นยำสูง
+2. **ตัวเร่งความเร็วฮาร์ดแวร์อัตโนมัติ**: ระบบตรวจจับตัวเร่งความเร็ว (CoreML บน Mac / CUDA บน Nvidia GPU) อัตโนมัติ ปรับปรุงความเร็วในการดึงรอยสแกนใบหน้าขึ้น 7 เท่า (~20ms ต่อเฟรม)
+3. **จัดเก็บรูปภาพตัดเฉพาะ (MinIO Face Crop)**: ครอปเฉพาะส่วนใบหน้าพนักงานด้วยพิกัด AI สตรีมอัปโหลดขึ้นระบบ Object Storage (MinIO S3) แบบ Asynchronous ไร้รอยสะดุด
+4. **แก้ไขเวลาคลาดเคลื่อน (Timezone Asia/Bangkok)**: ล็อกเวลาฐานข้อมูลเป็นเวลาประเทศไทย ป้องกันการเช็คอินผิดปฏิทินเมื่อนำไป Deploy บน Cloud ต่างประเทศ (เช่น AWS/Render ที่เป็น UTC)
+5. **Deduplication Throttling**: ประยุกต์ใช้ Redis ป้องกันสแปมการเช็คอิน/เช็คเอาท์ซ้ำซ้อน ช่วยปกป้องการประมวลผลและการบันทึกฐานข้อมูล PostgreSQL
+6. **อัปเดตผลลัพธ์แบบเรียลไทม์**: Broadcast ผลการเช็คอิน/เช็คเอาท์ส่งตรงไปยังหน้าแดชบอร์ดแบบเสี้ยววินาทีผ่าน WebSockets
 
 ---
 
@@ -18,9 +19,9 @@
 
 - **Backend Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Python 3.11+)
 - **Database**: PostgreSQL (สตรีมผ่าน [SQLAlchemy 2.0](https://www.sqlalchemy.org/) และ AsyncPG)
-- **Object Storage**: [MinIO](https://min.io/) (เก็บไฟล์รูปภาพ)
-- **Caching & Broker**: Redis (ใช้ควบคุมคิวการรับส่งข้อมูล)
-- **AI & Computer Vision**: [InsightFace](https://github.com/deepinsight/insightface), ONNXRuntime, OpenCV, Pillow (รองรับรูปภาพ .png, .jpg, .jpeg, .webp, .bmp)
+- **Object Storage**: [MinIO](https://min.io/) (เก็บไฟล์รูปภาพใบหน้าพนักงาน)
+- **Caching & Throttling**: Redis (ควบคุมและกรองข้อมูลเข้างานซ้ำซ้อน)
+- **AI & Computer Vision**: [InsightFace](https://github.com/deepinsight/insightface), ONNXRuntime, OpenCV, Pillow (รองรับภาพ .png, .jpg, .jpeg, .webp, .bmp)
 
 ---
 
@@ -80,41 +81,40 @@
 | check_out_time | TIMESTAMPTZ | ว่างได้ | NULL | เวลาสแกนออกงานล่าสุด (ระบบจะสลับเช็คเอาท์หลังผ่านไป 10 นาที) |
 | camera_id | VARCHAR(100) | ห้ามว่าง | - | ไอดีกล้องหรืออุปกรณ์ Kiosk ที่ใช้สแกน |
 | confidence_score | FLOAT | ห้ามว่าง | - | คะแนนความแม่นยำของใบหน้า (%) |
-| status | VARCHAR(20) | ห้ามว่าง | 'present' | สถานะ: present (มาทำงานปกติ), late (สาย), early_leave (กลับก่อนเวลา) |
+| status | VARCHAR(20) | ห้ามว่าง | 'present' | สถานะ: present (มาทำงานปกติ) |
 | image_url | VARCHAR(512) | ว่างได้ | NULL | ลิงก์รูปภาพถ่ายสดใบหน้าตอนที่สแกนผ่านจริงใน MinIO |
 | created_at | TIMESTAMPTZ | ห้ามว่าง | now() | วัน-เวลาที่สร้างบันทึกนี้เข้าระบบ |
 | updated_at | TIMESTAMPTZ | ห้ามว่าง | now() | วัน-เวลาที่อัปเดตข้อมูลล่าสุด |
 | deleted_at | TIMESTAMPTZ | ว่างได้ | NULL | วัน-เวลาที่ลบบันทึกประวัตินี้ออก (Soft Delete) |
 
-> ⚠️ **หมายเหตุ:** มีคีย์ประกอบแบบพิเศษ `UniqueConstraint("employee_id", "work_date")` ควบคุมอยู่เพื่อห้ามสร้างแถวบันทึกเวลาซ้ำซ้อนในวันเดียวกัน
+> ⚠️ **หมายเหตุ:** มีดัชนีคีย์ประกอบพิเศษ `UniqueConstraint("employee_id", "work_date")` ควบคุมอยู่เพื่อห้ามสร้างแถวบันทึกเวลาเข้างานซ้ำซ้อนในวันเดียวกัน
 
 ---
 
 ## ⚡ Quick Start
 
-### 1. Command Docker
+### 1. การใช้งานบนตู้คอนเทนเนอร์ (Docker Environment)
+
+เนื่องจากระบบคอนฟิกทั้งหมดถูกจัดระเบียบและย้ายไปอยู่ที่โฟลเดอร์ `docker/` สคริปต์รันจึงย้ายและควบคุมได้จากที่เดียวกัน:
 
 ```bash
-# Run
+# 1. ย้ายเข้าโฟลเดอร์สำหรับจัดการ Docker
+cd docker
+
+# 2. สั่งเริ่มการทำงานระบบใน Background
 docker compose up -d
 
-# Build the image and run
+# 3. สั่งรันและสร้างอิมเมจระบบใหม่ทั้งหมด
 docker compose up -d --build
 
-# Stop and cleanup volumes
-docker compose down -v
-
-# Stop containers
-docker compose stop
-
-# Restart containers
-docker compose restart
-
-# View logs
+# 4. ตรวจสอบการบันทึกสถานะการรัน (Logs)
 docker compose logs -f
+
+# 5. สั่งหยุดการทำงานและล้างข้อมูลจำลอง
+docker compose down -v
 ```
 
-### 2. ตั้งค่าการรันระบบหลังบ้าน (FastAPI Server)
+### 2. ตั้งค่าการรันสำหรับเครื่องพัฒนาหลังบ้าน (FastAPI Server)
 
 1. **สร้างและเรียกใช้งาน Virtual Environment**:
    ```bash
@@ -122,7 +122,7 @@ docker compose logs -f
    source .venv/bin/activate
    ```
 
-2. **ติดตั้งปลั๊กอินและ Dependencies**:
+2. **ติดตั้ง dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
@@ -132,17 +132,24 @@ docker compose logs -f
    alembic upgrade head
    ```
 
-4. **สั่งรันเซิร์ฟเวอร์หลังบ้าน**:
+4. **สั่งรันเซิร์ฟเวอร์หลังบ้านเพื่อพัฒนา**:
    ```bash
    uvicorn app.main:app --reload
    ```
+
+### 3. รันแอปพลิเคชันจำลองหน้าตู้นำทางด้วย OpenCV Kiosk
+
+```bash
+# สั่งรัน OpenCV Desktop Kiosk จำลองหน้าตู้ผ่านเว็บแคมเครื่อง
+python gui/run_kiosk.py
+```
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-# รันการทดสอบระบบทั้งหมดในทีเดียว
+# รันการทดสอบระบบและสถาปัตยกรรม Soft Delete ทั้งหมดในทีเดียว
 PYTHONPATH=. ./.venv/bin/pytest -v
 ```
 
@@ -163,9 +170,12 @@ PYTHONPATH=. ./.venv/bin/pytest -v
 │   ├── repositories/  # เลเยอร์จัดการคำสั่งคิวรี SQL หลักแบบตัดการลบตรง
 │   ├── schemas/       # สคีมารองรับและตรวจสอบความถูกต้องของข้อมูล (Pydantic)
 │   └── services/      # บริการหลักของธุรกิจ, การประมวลผลระบบแคช, และการอัปโหลดภาพใบหน้าขึ้น MinIO
-├── tests/             # ไฟล์ทดสอบสคริปต์ (Pytest)
-├── Dockerfile         # คำสั่งสร้างอิมเมจ API ของระบบ
-├── docker-compose.yml # จัดระเบียบการเชื่อมโยงระบบฐานข้อมูล, คีย์เวิร์ด และ MinIO
+├── docker/            # โฟลเดอร์เก็บคอนฟิกสำหรับรัน Container
+│   ├── Dockerfile     # สคริปต์สร้างอิมเมจสำหรับรัน API ระบบ
+│   └── docker-compose.yml # เชื่อมโยงระบบหลังบ้าน ฐานข้อมูล Redis และ MinIO เข้าด้วยกัน
+├── gui/               # โฟลเดอร์เก็บแอปพลิเคชันหน้าจอ Kiosk
+│   └── run_kiosk.py   # แอปพลิเคชันหน้าตู้จำลองด้วยกล้องเว็บแคมผ่าน OpenCV
+├── tests/             # ไฟล์ทดสอบสคริปต์แบบอัตโนมัติ (Pytest)
 ├── requirements.txt   # รายชื่อแพ็กเกจระบบควบคุมการรันภาษา Python
-└── run_kiosk.py       # แอปพลิเคชันจำลองหน้าตู้นำทางด้วยกล้องสแกน OpenCV
+└── alembic.ini        # คอนฟิกกลางของระบบฐานข้อมูลไมเกรชัน
 ```
