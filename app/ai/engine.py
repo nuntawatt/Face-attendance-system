@@ -104,8 +104,7 @@ class FaceEngine:
             raise RuntimeError("FaceEngine ยังไม่ได้โหลด")
         return await asyncio.to_thread(self._analyze_sync, frame)
 
-    # ──────────────────────────────────────────────────────────────────
-
+    # --- internal methods (blocking) ---
     def _analyze_sync(self, frame: np.ndarray) -> list[DetectedFace]:
         """Blocking pipeline: detect → align → embed"""
         h, w = frame.shape[:2]
