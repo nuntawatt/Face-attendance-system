@@ -45,7 +45,7 @@ from app.schemas.face import FaceRegistrationResponse
 logger = structlog.get_logger(__name__)
 
 # เวอร์ชันโมเดลที่ใช้สำหรับ embedding นี้ เก็บไว้เพื่อ compatibility ในอนาคต
-MODEL_VERSION = f"{settings.face_model_pack}_v1"
+MODEL_VERSION = "edgeface_xs_v1"
 
 
 class FaceRegistrationService:

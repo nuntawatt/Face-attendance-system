@@ -70,34 +70,13 @@ class Settings(BaseSettings):
         "http://localhost:9000", alias="MINIO_EXTERNAL_ENDPOINT"
     )
 
-    # AI
-    face_model_pack: str = "buffalo_s"
+    # AI — YuNet + EdgeFace
     face_det_size: int = 320
     face_det_threshold: float = 0.5
     face_recognition_threshold: float = 0.45
     min_image_quality: float = 0.4
-    face_providers_json: str = Field("[]", alias="FACE_PROVIDERS_JSON")
 
-    @cached_property
-    def face_providers(self) -> list[str]:
-        """ดึงรายการ Execution Providers สำหรับ ONNX Runtime โดยเลือกตัวที่เร็วที่สุดแบบอัตโนมัติ"""
-        if self.face_providers_json and self.face_providers_json != "[]":
-            try:
-                raw = json.loads(self.face_providers_json)
-                if raw:
-                    return [str(p) for p in raw]
-            except Exception:
-                pass
-        
-        import onnxruntime as ort
-        available = ort.get_available_providers()
-        providers = []
-        if "CUDAExecutionProvider" in available:
-            providers.append("CUDAExecutionProvider")
-        if "CoreMLExecutionProvider" in available:
-            providers.append("CoreMLExecutionProvider")
-        providers.append("CPUExecutionProvider")
-        return providers
+
 
     # Camera JSON array of camera config dicts
     cameras_json: str = Field("[]", alias="CAMERAS_JSON")

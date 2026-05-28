@@ -1,152 +1,228 @@
 """
-InsightFace ONNX engine wrapper
+YuNet + EdgeFace Engine — เบาและเร็วกว่า InsightFace 5-10x
 
-รูปแบบ Singleton: โมเดลถูกโหลดครั้งเดียวตอน startup และใช้ซ้ำตลอด
-การโหลดโมเดล ONNX ขนาด 300MB ต่อ request จะทำให้ระบบล่มแน่นอน
+Pipeline: Frame → YuNet (detect+landmarks) → Align 112×112 → EdgeFace (embedding 512)
 
-Thread-safety: ONNX Runtime session ปลอดภัยสำหรับ inference พร้อมกันหลาย thread
-เราใช้ asyncio.to_thread() รัน CPU-bound inference โดยไม่ block event loop
-
-ปุ่มปรับ performance:
-- inter_op_num_threads / intra_op_num_threads: ปรับตาม hardware จริง
-- ใช้ CUDAExecutionProvider ถ้ามี GPU, fallback เป็น CPU
-- face_det_size: ยิ่งเล็กยิ่งเร็ว แต่แม่นยำน้อยลงกับใบหน้าเล็ก
+YuNet:     ~0.3 MB, built-in OpenCV (cv2.FaceDetectorYN), ~2-5 ms/frame
+EdgeFace:  ~6.9 MB, ONNX Runtime, ~5-10 ms/face, 512-dim embedding
+รวม:       ~7.1 MB (เทียบ InsightFace buffalo_l = 326 MB)
 """
 
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import NamedTuple
 
 import cv2
 import numpy as np
+import onnxruntime as ort
 import structlog
-from insightface.app import FaceAnalysis
 
 from app.core.config import settings
 
 logger = structlog.get_logger(__name__)
 
+# โฟลเดอร์เก็บโมเดล ONNX
+_MODELS_DIR = Path(__file__).resolve().parent / "models"
+
+# ArcFace alignment template — 5 จุดอ้างอิงบนภาพ 112×112
+_ARCFACE_REF = np.array([
+    [38.2946, 51.6963],   # ตาซ้าย
+    [73.5318, 51.5014],   # ตาขวา
+    [56.0252, 71.7366],   # จมูก
+    [41.5493, 92.3655],   # มุมปากซ้าย
+    [70.7299, 92.2041],   # มุมปากขวา
+], dtype=np.float32)
+
 
 class DetectedFace(NamedTuple):
-    embedding: np.ndarray  # shape: (512,) normalized float32
-    bbox: tuple[int, int, int, int]  # x1, y1, x2, y2
-    det_score: float  # คะแนน detection ความแน่ใจของการตรวจพบ
-    quality_score: float  # คะแนนคุณภาพภาพ (0.0 - 1.0)
+    """ใบหน้าที่ตรวจจับได้ — interface เดิมทุกอย่าง"""
+    embedding: np.ndarray               # shape (512,) normalized float32
+    bbox: tuple[int, int, int, int]     # x1, y1, x2, y2
+    det_score: float                    # คะแนน detection
+    quality_score: float                # คะแนนคุณภาพ (Laplacian)
 
 
 class FaceEngine:
     """
-    Wraps InsightFace สำหรับ detection + embedding extraction
+    YuNet detector + EdgeFace recognizer
 
-    model_pack: 'buffalo_l' (แม่นยำ) หรือ 'buffalo_s' (เร็ว)
-    สำหรับโรงงาน buffalo_s มักเพียงพอและประหยัด CPU ~40%
-    เมื่อเทียบกับ buffalo_l
+    API เหมือน InsightFace engine เดิม:
+      - face_engine.load()
+      - await face_engine.analyze_frame(frame) → list[DetectedFace]
     """
 
     def __init__(
         self,
-        model_pack: str = "buffalo_s",
         det_size: tuple[int, int] = (320, 320),
         det_thresh: float = 0.5,
-        providers: list[str] | None = None,
     ) -> None:
-        self._model_pack = model_pack
         self._det_size = det_size
         self._det_thresh = det_thresh
-        self._providers = providers or ["CPUExecutionProvider"]
-        self._app: FaceAnalysis | None = None
+        self._detector: cv2.FaceDetectorYN | None = None
+        self._recognizer: ort.InferenceSession | None = None
+        self._rec_input_name: str = ""
 
     def load(self) -> None:
-        """Blocking load เรียกจาก startup event ไม่ใช่จาก coroutine"""
-        logger.info("กำลังโหลด face engine", model=self._model_pack)
-        self._app = FaceAnalysis(
-            name=self._model_pack,
-            providers=self._providers,
+        """โหลด YuNet + EdgeFace (blocking — เรียกตอน startup)"""
+        det_path = str(_MODELS_DIR / "yunet.onnx")
+        rec_path = str(_MODELS_DIR / "edgeface_xs.onnx")
+
+        # --- YuNet detector ---
+        logger.info("กำลังโหลด YuNet detector", path=det_path)
+        self._detector = cv2.FaceDetectorYN.create(
+            model=det_path,
+            config="",
+            input_size=self._det_size,
+            score_threshold=self._det_thresh,
+            nms_threshold=0.3,
+            top_k=10,
         )
-        self._app.prepare(
-            ctx_id=0, det_size=self._det_size, det_thresh=self._det_thresh
-        )
-        logger.info("face engine พร้อมใช้งาน", model=self._model_pack)
+
+        # --- EdgeFace recognizer ---
+        logger.info("กำลังโหลด EdgeFace recognizer", path=rec_path)
+        opts = ort.SessionOptions()
+        opts.inter_op_num_threads = 2
+        opts.intra_op_num_threads = 2
+        providers = ["CoreMLExecutionProvider", "CPUExecutionProvider"]
+        self._recognizer = ort.InferenceSession(rec_path, opts, providers=providers)
+        self._rec_input_name = self._recognizer.get_inputs()[0].name
+
+        # ตรวจสอบ output shape
+        out_shape = self._recognizer.get_outputs()[0].shape
+        logger.info("face engine พร้อมใช้งาน",
+                     det_size=self._det_size, rec_output=out_shape)
 
     @property
     def is_ready(self) -> bool:
-        return self._app is not None
+        return self._detector is not None and self._recognizer is not None
 
     async def analyze_frame(self, frame: np.ndarray) -> list[DetectedFace]:
-        """
-        รัน detection + embedding บน frame แบบ async
-        asyncio.to_thread ทำให้ CPU-bound ONNX inference ไม่ block event loop
-        รักษา API responsiveness ไว้ได้แม้ขณะประมวลผลภาพ
-        """
+        """รัน detection + embedding แบบ async (ไม่ block event loop)"""
         if not self.is_ready:
             raise RuntimeError("FaceEngine ยังไม่ได้โหลด")
         return await asyncio.to_thread(self._analyze_sync, frame)
 
+    # ──────────────────────────────────────────────────────────────────
+
     def _analyze_sync(self, frame: np.ndarray) -> list[DetectedFace]:
-        """ฟังก์ชัน blocking รันใน thread pool เสมอ ห้ามเรียกตรงจาก async code"""
-        faces = self._app.get(frame)
+        """Blocking pipeline: detect → align → embed"""
+        h, w = frame.shape[:2]
+        self._detector.setInputSize((w, h))
+        _, detections = self._detector.detect(frame)
+
+        if detections is None:
+            return []
+
         results: list[DetectedFace] = []
-        for face in faces:
-            embedding = face.normed_embedding.astype(np.float32)
-            bbox = tuple(face.bbox.astype(int).tolist())
-            quality = self._estimate_quality(frame, bbox)
-            results.append(
-                DetectedFace(
-                    embedding=embedding,
-                    bbox=bbox,
-                    det_score=float(face.det_score),
-                    quality_score=quality,
-                )
-            )
+        for det in detections:
+            score = float(det[14])
+            if score < self._det_thresh:
+                continue
+
+            # bbox (x, y, w, h) → (x1, y1, x2, y2)
+            bx, by, bw, bh = det[0:4].astype(int)
+            x1 = max(0, int(bx))
+            y1 = max(0, int(by))
+            x2 = min(w, int(bx + bw))
+            y2 = min(h, int(by + bh))
+            if x2 <= x1 or y2 <= y1:
+                continue
+
+            # 5 landmarks จาก YuNet: (right_eye, left_eye, nose, right_mouth, left_mouth)
+            landmarks = det[4:14].reshape(5, 2).astype(np.float32)
+
+            # Align face → 112×112
+            aligned = self._align_face(frame, landmarks)
+            if aligned is None:
+                continue
+
+            # สร้าง embedding
+            embedding = self._extract_embedding(aligned)
+
+            # วัดคุณภาพ (Laplacian variance)
+            quality = self._estimate_quality(frame, (x1, y1, x2, y2))
+
+            results.append(DetectedFace(
+                embedding=embedding,
+                bbox=(x1, y1, x2, y2),
+                det_score=score,
+                quality_score=quality,
+            ))
+
         return results
+
+    def _align_face(self, frame: np.ndarray, landmarks: np.ndarray) -> np.ndarray | None:
+        """
+        Align ใบหน้าด้วย similarity transform จาก 5 landmarks → ArcFace template 112×112
+
+        YuNet ให้ landmark ลำดับ: right_eye, left_eye, nose, right_mouth, left_mouth
+        ArcFace template ต้องการ:  left_eye, right_eye, nose, left_mouth, right_mouth
+        → ต้องสลับลำดับ
+        """
+        # สลับลำดับ landmark ให้ตรงกับ ArcFace template
+        src_pts = landmarks[[1, 0, 2, 4, 3]]  # left_eye, right_eye, nose, left_mouth, right_mouth
+
+        # คำนวณ similarity transform
+        M, _ = cv2.estimateAffinePartial2D(src_pts, _ARCFACE_REF, method=cv2.RANSAC)
+        if M is None:
+            return None
+
+        aligned = cv2.warpAffine(frame, M, (112, 112), borderValue=(0, 0, 0))
+        return aligned
+
+    def _extract_embedding(self, aligned_face: np.ndarray) -> np.ndarray:
+        """
+        รัน EdgeFace ONNX → 512-dim normalized embedding
+
+        Preprocessing: BGR → RGB, normalize [-1, 1], HWC → CHW, batch
+        """
+        img = cv2.cvtColor(aligned_face, cv2.COLOR_BGR2RGB).astype(np.float32)
+        img = (img - 127.5) / 128.0         # normalize เป็น [-1, 1]
+        img = np.transpose(img, (2, 0, 1))   # HWC → CHW
+        img = np.expand_dims(img, axis=0)     # batch dimension
+
+        output = self._recognizer.run(None, {self._rec_input_name: img})[0]
+        embedding = output[0].astype(np.float32)
+
+        # L2 normalize
+        norm = np.linalg.norm(embedding)
+        if norm > 0:
+            embedding = embedding / norm
+
+        return embedding
 
     @staticmethod
     def _estimate_quality(frame: np.ndarray, bbox: tuple[int, int, int, int]) -> float:
-        """
-        Heuristic วัดคุณภาพภาพแบบเบา: Laplacian variance (ความคมชัด)
-        คะแนน > 100 = ใช้ได้, > 200 = คุณภาพดีสำหรับลงทะเบียน
-        ตั้งใจให้ถูก ไม่ใช้ ML model, ใช้แค่ CV math เพื่อประหยัด CPU
-        """
+        """Laplacian variance — วัดความคมชัด (เหมือนเดิม)"""
         x1, y1, x2, y2 = bbox
-        face_crop = frame[y1:y2, x1:x2]
-        if face_crop.size == 0:
+        crop = frame[y1:y2, x1:x2]
+        if crop.size == 0:
             return 0.0
-        gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
-        variance = cv2.Laplacian(gray, cv2.CV_64F).var()
-        return min(float(variance) / 200.0, 1.0)  # normalize เป็น [0, 1]
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        return min(float(cv2.Laplacian(gray, cv2.CV_64F).var()) / 200.0, 1.0)
 
 
 def crop_and_encode_face(
     frame: np.ndarray, bbox: tuple[int, int, int, int], quality: int = 95
 ) -> bytes:
-    """
-    Crops a face from a BGR frame based on bounding box coordinates,
-    guards against out-of-bound edge cases, and encodes it into JPEG bytes.
-    """
+    """Crop ใบหน้าจาก frame แล้ว encode เป็น JPEG bytes (ไม่เปลี่ยน)"""
     x1, y1, x2, y2 = bbox
     h, w = frame.shape[:2]
+    x1, y1 = max(0, int(x1)), max(0, int(y1))
+    x2, y2 = min(w, int(x2)), min(h, int(y2))
 
-    # Safe boundary coordinate clipping
-    x1 = max(0, int(x1))
-    y1 = max(0, int(y1))
-    x2 = min(w, int(x2))
-    y2 = min(h, int(y2))
+    crop = frame[y1:y2, x1:x2]
+    if crop.size == 0:
+        raise ValueError("Invalid bbox: empty face crop")
 
-    face_crop = frame[y1:y2, x1:x2]
-    if face_crop.size == 0:
-        raise ValueError("Invalid bounding box size resulted in an empty face crop.")
-
-    _, buffer = cv2.imencode(
-        ".jpg", face_crop, [int(cv2.IMWRITE_JPEG_QUALITY), quality]
-    )
-    return buffer.tobytes()
+    _, buf = cv2.imencode(".jpg", crop, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+    return buf.tobytes()
 
 
-# Singleton ระดับ application ใช้ค่าจาก config
+# Singleton — ใช้ค่าจาก config
 face_engine = FaceEngine(
-    model_pack=settings.face_model_pack,
     det_size=(settings.face_det_size, settings.face_det_size),
     det_thresh=settings.face_det_threshold,
-    providers=settings.face_providers,
 )

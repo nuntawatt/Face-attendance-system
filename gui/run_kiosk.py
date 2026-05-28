@@ -48,6 +48,7 @@ CHECKOUT_WAIT_SEC   = 600        # 10 นาที
 CAMERA_W, CAMERA_H  = 1280, 720
 HEADER_H, FOOTER_H  = 62, 42
 MSG_DURATION         = {True: 4.0, False: 3.0}   # register=4s, force=3s
+DETECT_EVERY_N       = 3           # รัน AI ทุก N เฟรม (ประหยัด CPU 60-70%)
 WINDOW_NAME          = "Face Attendance System"
 
 # สถานะ → (สี, ข้อความ)
@@ -336,7 +337,7 @@ async def register_face_flow(frame, engine, session_factory):
         img_url = await minio_service.upload_image_async(crop, f"{uuid.uuid4()}.jpg")
         await FaceEmbeddingRepository(s).upsert(FaceEmbedding(
             employee_id=emp.id, embedding_vector=emb_bytes,
-            model_version=f"{settings.face_model_pack}_v1",
+            model_version="edgeface_xs_v1",
             image_quality_score=face.quality_score, image_url=img_url))
         await repo.set_face_registered(emp.id, registered=True)
         await s.commit()
@@ -461,6 +462,7 @@ async def main():
     emp_status: dict[str, dict] = {}
     fps, fc, ft = 0.0, 0, time.monotonic()
     msg, msg_until = "", 0.0
+    cached_faces = []  # เก็บผล detect ไว้ใช้ซ้ำระหว่างเฟรม
 
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(WINDOW_NAME, CAMERA_W, CAMERA_H)
@@ -481,9 +483,10 @@ async def main():
             if el >= 1.0:
                 fps, fc, ft = fc / el, 0, time.monotonic()
 
-            # ตรวจจับ + จับคู่ใบหน้า
-            faces = await face_engine.analyze_frame(frame)
-            good = [f for f in faces if f.det_score >= MIN_DET_SCORE]
+            # ตรวจจับทุก N เฟรม — เฟรมที่เหลือใช้ผลเก่า (ประหยัด CPU 60-70%)
+            if fc % DETECT_EVERY_N == 0:
+                cached_faces = await face_engine.analyze_frame(frame)
+            good = [f for f in cached_faces if f.det_score >= MIN_DET_SCORE]
             active_id = active_name = None
             active_conf = 0.0
 

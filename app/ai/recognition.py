@@ -54,7 +54,7 @@ class EmployeeEmbeddingIndex:
         default_factory=lambda: np.empty((0, 512), dtype=np.float32)
     )
     _employee_ids: list[UUID] = field(default_factory=list)
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)  # ใช้เฉพาะ rebuild
 
     @property
     def size(self) -> int:
@@ -79,17 +79,15 @@ class EmployeeEmbeddingIndex:
 
     async def find_match(self, probe: np.ndarray) -> RecognitionMatch | None:
         """
-        ค้นหาด้วย cosine similarity คืน match ที่ดีที่สุดที่เหนือ threshold
-        probe ต้องเป็น normalized (L2) float32 vector shape (512,)
+        ค้นหาด้วย cosine similarity — read-only path ไม่ต้อง lock
+        (atomic reference read ปลอดภัยใน CPython / GIL)
         """
-        async with self._lock:
-            if self._matrix.shape[0] == 0:
-                return None
-            matrix = self._matrix
-            ids = self._employee_ids
+        matrix = self._matrix
+        ids = self._employee_ids
+        if matrix.shape[0] == 0:
+            return None
 
-        # Cosine similarity = dot product ของ normalized vector
-        similarities = matrix @ probe  # shape: (N,)
+        similarities = matrix @ probe
         best_idx = int(np.argmax(similarities))
         best_sim = float(similarities[best_idx])
 
